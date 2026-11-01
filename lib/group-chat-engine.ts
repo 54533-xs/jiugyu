@@ -68,7 +68,7 @@ import { loadMemoryConfig, incrementEventCounter } from "./memory-storage";
 import { retrieveCoreMemoriesForPrompt, retrieveMemoriesForPrompt } from "./memory-service";
 import { formatCoreMemories, formatLongTermMemories } from "./memory-injector";
 import { maybeRunSummarization } from "./memory-summarizer";
-import { prepareShortTermContext, prepareGroupShortTermContext } from "./short-term-assembler";
+import { loadNativeTimelineAsync, prepareShortTermContext, prepareGroupShortTermContext, type NativeTimelineEntry } from "./short-term-assembler";
 import { parseActionTags, dispatchActions } from "./action-parser";
 import { getCustomStickerExample, loadCustomStickers } from "./custom-sticker-storage";
 import { formatCustomAppChatDirectivesForPrompt } from "./custom-app-chat-directives";
@@ -334,6 +334,7 @@ async function buildGroupChatPromptMessages(
 
     const now = new Date();
     const memberTimeContexts: Record<string, ReturnType<typeof buildCharacterTimeContext>> = {};
+    const timelines = new Map<string, NativeTimelineEntry[]>();
     const memberDataPromises = participantIds.map(async (charId): Promise<GroupMemberData | null> => {
         const character = charMap.get(charId);
         if (!character) return null;
@@ -345,7 +346,14 @@ async function buildGroupChatPromptMessages(
         const worldBooks = promptProfile?.enableWorldBooks === false
             ? []
             : (charSlot.worldBookIds || []).map(id => allWorldBooks.find(w => w.id === id)).filter(Boolean) as typeof allWorldBooks;
+        const timeline = await loadNativeTimelineAsync(charId, {
+            appId: "group_chat", userName,
+            excludeOfflineSessionId: options?.excludeOfflineSessionId,
+            promptTimestampOptions: getPromptTimestampOptionsForTimeContext(memberTimeContext),
+        });
+        timelines.set(charId, timeline);
         const { wbActivationContext } = prepareShortTermContext(charId, "group_chat", {
+            timeline,
             userName,
             excludeGroupSessionId: isOfflineMode ? undefined : session.id,
             excludeOfflineSessionId: options?.excludeOfflineSessionId,
@@ -393,6 +401,7 @@ async function buildGroupChatPromptMessages(
         wbActivationContext,
         unifiedRecentItems,
     } = prepareGroupShortTermContext(participantIds, annotatedHistory, {
+        timelines,
         userName,
         excludeGroupSessionId: isOfflineMode ? undefined : session.id,
         excludeOfflineSessionId: options?.excludeOfflineSessionId,

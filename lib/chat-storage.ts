@@ -14,7 +14,7 @@ import { emitChatPluginEvent, runChatPluginTransformSync } from "./chat-plugin-h
 import { parseAIResponse } from "./rich-message-parser";
 import { extractTextToolDirectiveText } from "./text-tool-protocol";
 import { findUserAvatarChangeIntent, inferAvatarDecisionFromReply } from "./chat-avatar-intent";
-import { loadChatScope } from "./chat-scope-storage";
+import { loadChatScope, resolveChatAccountUserIdentity } from "./chat-scope-storage";
 import type { Character } from "./character-types";
 
 export const DEFAULT_VISION_IMAGE_PROMPT_LIMIT = 1;
@@ -41,6 +41,7 @@ export type ChatSession = {
     contactId: string;
     /** 独立聊天小号作用域；缺省表示主号。 */
     chatAccountId?: string;
+    userNickname?: string;
     lastMessageId?: string;
     lastMessagePreview?: string;
     unreadCount: number;
@@ -759,10 +760,24 @@ export function compareChatMessages(a: ChatMessage, b: ChatMessage): number {
     return a.id.localeCompare(b.id);
 }
 
+let indexedMessages: ChatMessage[] | undefined;
+let indexedMessageCount = -1;
+const messagePositionsBySession = new Map<string, number[]>();
+
 function getSortedSessionMessages(sessionId: string): ChatMessage[] {
-    return _loadAllMessages()
-        .filter(m => m.sessionId === sessionId)
-        .sort(compareChatMessages);
+    const messages = _loadAllMessages();
+    // 缓存位置而非消息对象：编辑/撤回替换原对象时仍会读到最新内容。
+    if (indexedMessages !== messages || indexedMessageCount !== messages.length) {
+        messagePositionsBySession.clear();
+        messages.forEach((message, index) => {
+            const positions = messagePositionsBySession.get(message.sessionId) || [];
+            positions.push(index);
+            messagePositionsBySession.set(message.sessionId, positions);
+        });
+        indexedMessages = messages;
+        indexedMessageCount = messages.length;
+    }
+    return (messagePositionsBySession.get(sessionId) || []).map(index => messages[index]).sort(compareChatMessages);
 }
 
 function getNextMessageOrder(sessionId: string): number {
@@ -1473,6 +1488,11 @@ export function pushChatMessage(msg: Omit<ChatMessage, "id" | "createdAt" | "sta
         order: getNextMessageOrder(msg.sessionId),
         status: msg.status || "sent"
     };
+    if (newMsg.role === "user" && !newMsg.senderName) {
+        const owner = _sessionsCache.find(item => item.id === msg.sessionId);
+        const identity = resolveChatAccountUserIdentity(owner?.chatAccountId, owner?.isGroup ? undefined : owner?.contactId, owner?.isGroup ? "group_chat" : "chat");
+        newMsg.senderName = identity?.name || owner?.userNickname || "用户";
+    }
 
     // 聊天插件织入点：消息落库前同步改写（全部消息路径都会经过这里）
     const pluginResult = runChatPluginTransformSync("message.beforePersist", { message: newMsg });

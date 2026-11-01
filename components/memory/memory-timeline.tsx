@@ -140,7 +140,7 @@ function parseEntry(evt: NativeTimelineEntry, userName: string): ParsedEntry | n
                 id: evt.id,
                 timestamp: evt.timestamp,
                 sender: m[1],
-                isUser: m[1] === userName,
+                isUser: evt.authorType ? evt.authorType === "user" : m[1] === userName,
                 message: inner ? inner[1] : raw,
                 innerMonologue: inner ? inner[2] : undefined,
             };
@@ -157,7 +157,7 @@ function parseEntry(evt: NativeTimelineEntry, userName: string): ParsedEntry | n
                 timestamp: evt.timestamp,
                 groupName: m[1],
                 sender: m[2],
-                isUser: m[2] === userName,
+                isUser: evt.authorType ? evt.authorType === "user" : m[2] === userName,
                 message: m[3],
             };
         }

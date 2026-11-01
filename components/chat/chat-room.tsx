@@ -3393,6 +3393,9 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
         setGenerationLock(session.id);
 
         try {
+            // 先让输入区与生成状态完成绘制，再开始本地上下文装配。
+            await new Promise<void>(resolve => requestAnimationFrame(() => { setTimeout(resolve, 0); }));
+            if (!isCurrentGeneration()) return;
             const trimmedRetryInstruction = retryInstruction?.trim();
             let generationHistory: ChatMessage[] = trimmedRetryInstruction
                 ? [...history, {
@@ -4201,7 +4204,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
             setPendingGenerate(true);
             // 按回复键发送：消息落库后立即触发模型回复（无论插件是否异步改写，
             // 都在消息真正写入后触发，避免回复基于旧上下文）
-            if (options?.autoReply) void triggerAIResponse();
+            if (options?.autoReply) requestAnimationFrame(() => { void triggerAIResponse(); });
         };
 
         // 聊天插件织入点 user.beforeSend：无插件时走原同步路径，
@@ -4728,6 +4731,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
     };
 
     const handleRetry = async (msgId: string, retryInstruction?: string) => {
+        if (isGeneratingRef.current) return;
         const msgIndex = messages.findIndex(m => m.id === msgId);
         if (msgIndex === -1 || messages[msgIndex].role !== "assistant") return;
 
