@@ -81,6 +81,8 @@ export type ChatSession = {
     visionImagePromptLimitUsesGlobal?: boolean;
     /** 流式生成（线上）：开启后该会话的线上 AI 回复边生成边显示（默认关，保持原整段请求行为） */
     streamOnline?: boolean;
+    /** 线上聊天附加中文角色独白提示词，使用现有思考展示区；默认关闭。 */
+    chineseThinkingPromptEnabled?: boolean;
     /** 流式生成（线下）：开启后该会话的线下 AI 回复边生成边显示（默认关，保持原整段请求行为） */
     streamOffline?: boolean;
     /**

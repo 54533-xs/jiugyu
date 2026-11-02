@@ -438,6 +438,7 @@ export function ChatSettingsPanel({
     const [discardInvalidStickers, setDiscardInvalidStickers] = useState(session.discardInvalidStickers === true);
     // 流式生成：按会话区分（线上/线下），存 ChatSession 字段，默认关
     const [streamOnline, setStreamOnline] = useState(session.streamOnline === true);
+    const [chineseThinkingPromptEnabled, setChineseThinkingPromptEnabled] = useState(session.chineseThinkingPromptEnabled === true);
     const [streamOffline, setStreamOffline] = useState(session.streamOffline === true);
     const defaultBilingualPrompt = session.isGroup ? DEFAULT_GROUP_CHAT_BILINGUAL_PROMPT : DEFAULT_CHAT_BILINGUAL_PROMPT;
     const defaultOfflineBilingualPrompt = session.isGroup ? DEFAULT_GROUP_OFFLINE_CHAT_BILINGUAL_PROMPT : DEFAULT_OFFLINE_CHAT_BILINGUAL_PROMPT;
@@ -1460,6 +1461,19 @@ export function ChatSettingsPanel({
                         </div>
                         <div className="menu-item">
                             <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.api} />
+                            <div className="menu-label-group">
+                                <span className="menu-label">启用内置中文思考提示词</span>
+                                <span className="menu-desc">仅当前会话：在线上回复中加入中文角色独白，显示于现有思考区；关闭沿用原有方式</span>
+                            </div>
+                            <div className="menu-right">
+                                <Toggle checked={chineseThinkingPromptEnabled} onChange={checked => {
+                                    setChineseThinkingPromptEnabled(checked);
+                                    updateSession({ chineseThinkingPromptEnabled: checked });
+                                }} />
+                            </div>
+                        </div>
+                        <div className="menu-item">
+                            <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.preset} />
                             <div className="menu-label-group">
                                 <span className="menu-label">线上流式生成</span>
                                 <span className="menu-desc">仅当前会话：线上 AI 回复边生成边显示；关闭则整段返回</span>
