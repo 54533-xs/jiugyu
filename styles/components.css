@@ -1964,6 +1964,18 @@
   font-weight: 650;
 }
 
+.quick-action-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.quick-action-section details[open] > summary {
+  margin-bottom: 6px;
+}
+
+.quick-action-section details[open] > summary > svg {
+  transform: rotate(180deg);
+}
+
 .quick-action-option-list {
   display: flex;
   flex-direction: column;
