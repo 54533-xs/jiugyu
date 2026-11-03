@@ -47,11 +47,34 @@ export const INTERVIEW_MAGAZINE_DEFAULT_MEMORY_PROMPT = [
 
 export type InterviewTarget = "character" | "user";
 
+export type InterviewParticipation = "guest" | "spectator" | "backstage" | "host" | "flexible";
+export type InterviewFlow = "turns" | "all" | "all_user";
+export type InterviewOptions = {
+  participation: InterviewParticipation;
+  flow: InterviewFlow;
+  sceneInstructions: string;
+  discussion: boolean;
+  questionAsHost: boolean;
+};
+export type InterviewLivePhase = "idle" | "opening" | "answering" | "awaiting_user" | "reacting" | "discussing" | "stopped" | "error" | "done";
+export type InterviewLiveSnapshot = {
+  messages: InterviewMessage[];
+  phase: InterviewLivePhase;
+  round: number;
+  userAsGuest: boolean;
+  question: string;
+  askUserAfterRound?: boolean;
+  userInput?: string;
+  questionInput?: string;
+  error?: string;
+};
+
 export type InterviewMessage = {
   id: string;
   role: "host" | "character" | "user";
   content: string;
-  kind?: "intro" | "question" | "answer" | "outro";
+  kind?: "intro" | "question" | "answer" | "outro" | "reaction" | "discussion";
+  status?: "streaming" | "complete" | "stopped" | "error";
   target?: InterviewTarget;
   targetCharacterId?: string;
   targetCharacterName?: string;
@@ -110,6 +133,7 @@ export type InterviewArticle = {
 };
 
 export type InterviewIssue = {
+  options?: InterviewOptions;
   id: string;
   issueNumber: number;
   theme: string;
@@ -132,6 +156,8 @@ export type InterviewIssue = {
 export type InterviewDraftStatus = "paused" | "error" | "awaiting_user" | "done";
 
 export type InterviewDraft = {
+  options?: InterviewOptions;
+  liveState?: InterviewLiveSnapshot;
   id: string;
   theme: string;
   characterIds: string[];
