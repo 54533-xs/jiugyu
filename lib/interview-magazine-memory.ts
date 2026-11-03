@@ -22,6 +22,7 @@ export type InterviewMagazineProjectionEntry = {
 };
 
 type RecordInterviewMagazineProjectionInput = {
+  recipientCharacterIds?: string[];
   userRole?: "guest" | "host" | "observer";
   issueId: string;
   issueNumber: number;
@@ -78,6 +79,9 @@ function saveEventsByKey(key: string, events: InterviewMagazineProjectionEntry[]
 export function recordInterviewMagazineProjectionEvent(input: RecordInterviewMagazineProjectionInput): InterviewMagazineProjectionEntry | null {
   const characterIds = [...new Set(input.characterIds.map((id) => cleanText(id, 160)).filter(Boolean))];
   if (!input.issueId || characterIds.length === 0) return null;
+  const recipients = input.recipientCharacterIds === undefined ? characterIds
+    : [...new Set(input.recipientCharacterIds)].filter(id => characterIds.includes(id));
+  if (!recipients.length) return null;
 
   const userName = cleanText(input.userName, 80) || "共同受访者";
   const summary = normalizeUserNameToMacro(cleanText(input.summary, 1800), userName);
@@ -107,7 +111,7 @@ export function recordInterviewMagazineProjectionEvent(input: RecordInterviewMag
     shared,
   };
 
-  for (const characterId of characterIds) {
+  for (const characterId of recipients) {
     const key = storageKey(characterId);
     const current = loadEventsByKey(key);
     saveEventsByKey(key, [entry, ...current.filter((item) => item.id !== entry.id)]);

@@ -26,6 +26,8 @@ export function InterviewOptionsEditor({ options, onChange }: { options: Intervi
         <option value="all_user">全员回答后，用户回答并触发反应</option>
       </select></label>
     <p className="text-white/45 text-xs leading-relaxed">旁观时不自动询问用户，可随时点击出场。全员模式每位角色各调用自己的 API；角色回复以流式显示。选择互相讨论还会增加一轮发言。</p>
+    <label className="text-white/70 text-xs flex gap-2 items-center"><input type="checkbox" checked={options.readRecentMemory} onChange={event => onChange({ ...options, readRecentMemory: event.target.checked })} />接入角色最近记忆（默认开启）</label>
+    <p className="text-white/45 text-xs">仅作为采访背景，遵循最近记忆的来源与长度设置。成刊后可另行选择是否写入、写给哪些受访角色。</p>
     <label className="text-white/70 text-sm flex flex-col gap-2">场景要求<textarea aria-label="场景要求" className="interview-glass-input p-3" rows={2} value={options.sceneInstructions} placeholder="例如：回答后互相讨论，展现分歧和现场反应。" onChange={event => onChange({ ...options, sceneInstructions: event.target.value })} /></label>
     <label className="text-white/70 text-xs flex gap-2 items-center"><input type="checkbox" checked={options.discussion} onChange={event => onChange({ ...options, discussion: event.target.checked })} />回答后互相讨论</label>
   </section>;
@@ -123,6 +125,7 @@ export function InterviewLiveSession({ theme, guests, userIdentityId, userName, 
     </div>
     <footer className="interview-bottom-bar flex flex-col gap-3" style={{ maxHeight: "55%", overflowY: "auto", flexShrink: 0 }}>
       <details className="text-white/70 text-xs"><summary>场景要求与讨论</summary>
+        <label className="flex gap-2 items-center mt-2"><input type="checkbox" disabled={busy} checked={options.readRecentMemory} onChange={event => updateOptions({ ...options, readRecentMemory: event.target.checked })} />接入角色最近记忆</label>
         <textarea aria-label="场景要求" disabled={busy} className="interview-glass-input w-full p-3 mt-2" rows={2} placeholder="例如：回答之后互相讨论，展现分歧和现场反应。要求不会作为公开台词。" value={options.sceneInstructions} onChange={event => updateOptions({ ...options, sceneInstructions: event.target.value })} />
         <label className="flex gap-2 items-center mt-2"><input type="checkbox" disabled={busy} checked={options.discussion} onChange={event => updateOptions({ ...options, discussion: event.target.checked })} />回答后互相讨论（用户出场时在用户回答之后）</label>
       </details>

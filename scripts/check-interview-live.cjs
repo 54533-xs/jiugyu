@@ -150,9 +150,20 @@ async function main() {
   // Exercise the real engine adapters: independent bindings, streaming and abort propagation.
   const types = load("lib/interview-magazine-types.ts");
   const sent = [], assembled = [];
+  const memoryReads = [];
+  const recentMemory = load("lib/interview-magazine-recent-memory.ts", {
+    "./short-term-assembler": {
+      loadNativeTimelineAsync: async id => { memoryReads.push(id); return [{ content: `${id}自己的最近聊天` }]; },
+      prepareShortTermContext: (_id, _appId, input) => ({ recentBlocks: [{ tag: "recent_chat", content: input.timeline[0].content }] }),
+    },
+  });
+  assert.equal(options.normalizeInterviewOptions().readRecentMemory, true);
+  assert.equal(await recentMemory.buildInterviewRecentMemory(guests, "简初", false), "");
+  assert.equal(memoryReads.length, 0, "Turning recent memory off must skip local reads entirely");
   const identity = { id: "u", name: "简初" };
   const engine = load("lib/interview-magazine-engine.ts", {
     "./interview-magazine-types": types, "./interview-magazine-options": options,
+    "./interview-magazine-recent-memory": recentMemory,
     "./character-storage": { loadCharacters: () => guests.map(g => ({ ...g, persona: `${g.name}的人设`, tags: [] })) },
     "./settings-storage": {
       loadBindingConfig: () => ({}), loadPresets: () => guests.map(g => ({ id: `preset-${g.id}`, name: g.name })),
@@ -181,13 +192,22 @@ async function main() {
   assert.equal(sent[0][5].signal, signal);
   assert.equal(assembled[0].interviewHostName, "简初");
   assert.equal(assembled[0].interviewUserAnswer, "我的真实观点");
+  assert.match(sent[0][2].map(message => message.content).join("\n"), /a自己的最近聊天/);
+  assert.ok(!sent[0][2].map(message => message.content).join("\n").includes("b自己的最近聊天"), "A guest reads only its own private recent memory");
   const spectatorOptions = options.normalizeInterviewOptions({ participation: "spectator", flow: "all" });
   await engine.generateHostOpening("主题", ["a", "b"], "u", { signal, options: spectatorOptions, userAsGuest: false });
   assert.equal(sent[2][5].signal, signal);
   assert.match(sent[2][2][0].content, /不要自动向其提问/);
+  assert.match(sent[2][2].map(message => message.content).join("\n"), /b自己的最近聊天/);
   await engine.composeInterviewArticle({ theme: "主题", characterIds: ["a"], userIdentityId: "u", transcript: [], issueNumber: 1, options: spectatorOptions, signal });
   assert.match(sent[3][2][0].content, /不作为受访者/);
   assert.equal(sent[3][5].signal, signal);
+  assert.ok(!sent[3][2].some(message => String(message.content).includes("采访背景：最近记忆")), "An issue summary uses actual interview dialogue, not unrelated background memory");
+  const beforeReadOff = memoryReads.length;
+  await engine.generateCharacterInterviewAnswer({ theme: "主题", characterIds: ["a"], characterId: "a", question: "问题", transcript: [], round: 1,
+    options: options.normalizeInterviewOptions({ readRecentMemory: false }), onDelta() {} });
+  assert.equal(memoryReads.length, beforeReadOff);
+  assert.ok(!sent[4][2].map(message => message.content).join("\n").includes("采访背景：最近记忆"));
   assert.match(engine.formatInterviewTranscript([{ role: "user", kind: "question", content: "手动提问" }], "甲", "简初"), /主持人 简初/);
   assert.match(engine.formatInterviewTranscript([{ role: "character", content: "半条", status: "stopped" }], "甲", "简初"), /未完成/);
   const kv = new Map();
@@ -200,6 +220,26 @@ async function main() {
   assert.ok(!memory.recordInterviewMagazineProjectionEvent({ ...entry, userRole: "observer" }).content.includes("与{{user}}"));
   assert.match(memory.recordInterviewMagazineProjectionEvent({ ...entry, userRole: "host" }).content, /接受了\{\{user\}\}主持/);
   assert.match(memory.recordInterviewMagazineProjectionEvent(entry).content, /与\{\{user\}\}/);
-  console.log("✅ 在场流程与模型适配回归通过：全员并行、用户等待/反应、旁观逐轮、两种主持/灵活切换、顺序讨论、预约出场、停止与迟到拦截、草稿恢复、旧轮流模式、独立绑定/流式/取消信号；无真实 API 调用");
+  const counters = new Map();
+  let storedIssue = { id: "selective", issueNumber: 2, theme: "主题", characterIds: ["a", "b"], characterNames: ["甲", "乙"], characterId: "a", characterName: "甲",
+    userName: "简初", transcript: [], article: { title: "刊物", memorySummary: "摘要" }, options: options.normalizeInterviewOptions({ participation: "spectator" }), createdAt: new Date().toISOString() };
+  const writes = load("lib/interview-magazine-memory-write.ts", {
+    "./interview-magazine-memory": memory,
+    "./interview-magazine-storage": { loadInterviewIssues: () => [storedIssue], saveInterviewIssue: issue => { storedIssue = issue; } },
+    "./memory-storage": { incrementEventCounter: id => counters.set(id, (counters.get(id) || 0) + 1) },
+    "./user-macro": { normalizeUserNameToMacro: text => text },
+  });
+  writes.writeInterviewIssueMemory(storedIssue, ["b"], "只给乙的摘要");
+  assert.ok(!memory.loadInterviewMagazineProjectionEntries("a").some(item => item.issueId === "selective"));
+  assert.match(memory.loadInterviewMagazineProjectionEntries("b").find(item => item.issueId === "selective").content, /甲、乙完成/);
+  assert.equal(counters.get("b"), 1);
+  writes.writeInterviewIssueMemory(storedIssue, ["b"], "更新乙的摘要");
+  assert.equal(counters.get("b"), 1, "Updating an issue must not increment the event count twice");
+  assert.equal(memory.loadInterviewMagazineProjectionEntries("b").filter(item => item.issueId === "selective").length, 1);
+  writes.writeInterviewIssueMemory(storedIssue, ["a"], "现在给甲");
+  assert.match(memory.loadInterviewMagazineProjectionEntries("b").find(item => item.issueId === "selective").content, /更新乙的摘要/);
+  assert.throws(() => writes.writeInterviewIssueMemory(storedIssue, ["outsider"], "不能写给旁人"), /受访角色/);
+  assert.throws(() => writes.writeInterviewIssueMemory(storedIssue, [], "未选择不写入"), /请选择/);
+  console.log("✅ 在场流程与记忆回归通过：并行/反应/讨论/主持切换/取消、默认读取最近记忆与关闭、角色背景隔离、摘要不混入旧记忆、选择写入与去重；无真实 API 调用");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

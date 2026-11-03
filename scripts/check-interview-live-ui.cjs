@@ -9,6 +9,7 @@ global.IS_REACT_ACT_ENVIRONMENT = true;
 global.fetch = () => { throw new Error("UI regression must not call real APIs"); };
 const root = path.resolve(__dirname, "..");
 const drafts = new Map(), calls = [];
+const memoryWrites = [], writtenRoles = new Map();
 let pendingAnswers = null;
 const engine = {
   generateHostOpening: async (...args) => { calls.push({ type: "opening", args }); return { intro: "开场", question: "第一问" }; },
@@ -23,6 +24,14 @@ const originalLoad = Module._load;
 Module._load = function(request, parent, ...rest) {
   if (request === "@/lib/interview-magazine-engine") return engine;
   if (request === "@/lib/interview-magazine-storage") return { saveInterviewDraft: draft => { drafts.set(draft.id, JSON.parse(JSON.stringify(draft))); return [...drafts.values()]; } };
+  if (request === "@/lib/interview-magazine-memory-write") return {
+    interviewIssueParticipants: issue => issue.characterIds.map((id, index) => ({ id, name: issue.characterNames[index] })),
+    getInterviewMemoryRecipients: issue => writtenRoles.get(issue.id) || [],
+    writeInterviewIssueMemory: (issue, ids, summary) => {
+      memoryWrites.push({ ids, summary }); writtenRoles.set(issue.id, ids);
+      return { ...issue, article: { ...issue.article, memorySummary: summary }, memoryWrittenCharacterIds: ids };
+    },
+  };
   return originalLoad.call(this, request, parent, ...rest);
 };
 const originalResolve = Module._resolveFilename;
@@ -37,6 +46,7 @@ async function main() {
   const React = require("react"), { act } = React;
   const { createRoot } = require("react-dom/client");
   const { InterviewLiveSession, InterviewOptionsEditor } = require(path.join(root, "components/interview/interview-live-session.tsx"));
+  const { InterviewMemoryPanel } = require(path.join(root, "components/interview/interview-memory-panel.tsx"));
   const { normalizeInterviewOptions } = require(path.join(root, "lib/interview-magazine-options.ts"));
   const container = document.getElementById("root");
   let renderer = createRoot(container), changedOptions, state, latestDraft, composed, backed = false;
@@ -50,6 +60,11 @@ async function main() {
   await act(async () => renderer.render(React.createElement(InterviewOptionsEditor, { options: normalizeInterviewOptions(), onChange: options => { changedOptions = options; } })));
   assert.equal(label("参与身份").querySelectorAll("option").length, 5);
   assert.equal(label("采访方式").querySelectorAll("option").length, 3);
+  const readMemory = [...container.querySelectorAll("label")].find(element => element.textContent.includes("接入角色最近记忆")).querySelector("input");
+  const readProps = readMemory[Object.keys(readMemory).find(name => name.startsWith("__reactProps$"))];
+  assert.equal(readProps.checked, true);
+  await act(async () => readProps.onChange({ target: { checked: false } }));
+  assert.equal(changedOptions.readRecentMemory, false);
   await change(label("参与身份"), "backstage"); assert.equal(changedOptions.participation, "backstage");
   await change(label("采访方式"), "all_user"); assert.equal(changedOptions.flow, "all_user");
   await act(async () => renderer.unmount());
@@ -97,6 +112,25 @@ async function main() {
   assert.ok(!container.textContent.includes("迟到内容"));
   assert.ok(container.textContent.includes("保留流式片段"));
   await act(async () => renderer.unmount());
-  console.log("✅ 在场界面回归通过：五种身份/三种采访、流式状态、用户输入与反应、场景要求、成刊回调、未发送草稿恢复、停止与迟到拦截；无真实 API 调用");
+
+  renderer = createRoot(container);
+  let memorySaved;
+  const issue = { id: "memory-issue", userName: "简初", characterIds: ["a", "b"], characterNames: ["甲", "乙"], article: { memorySummary: "{{user}}谈了观点" } };
+  await act(async () => renderer.render(React.createElement(InterviewMemoryPanel, { issue, onSaved: next => { memorySaved = next; } })));
+  assert.equal(memoryWrites.length, 0, "Opening the article must never write a memory");
+  assert.ok(button("写入所选角色最近记忆").hasAttribute("disabled"));
+  const summaryInput = label("访谈记忆摘要");
+  const summaryProps = summaryInput[Object.keys(summaryInput).find(name => name.startsWith("__reactProps$"))];
+  assert.equal(summaryProps.value, "简初谈了观点");
+  const selectedRole = label("乙");
+  const selectedProps = selectedRole[Object.keys(selectedRole).find(name => name.startsWith("__reactProps$"))];
+  await act(async () => selectedProps.onChange({ target: { checked: true } }));
+  await change(label("访谈记忆摘要"), "手动确认的摘要");
+  await click(button("写入所选角色最近记忆"));
+  assert.deepEqual(memoryWrites[0], { ids: ["b"], summary: "手动确认的摘要" });
+  assert.deepEqual(memorySaved.memoryWrittenCharacterIds, ["b"]);
+  assert.ok(container.textContent.includes("已写入乙的最近记忆"));
+  await act(async () => renderer.unmount());
+  console.log("✅ 在场界面回归通过：身份/采访/流式/停止/草稿、默认接入最近记忆、摘要预览编辑与角色勾选、手动确认后才写入；无真实 API 调用");
 }
 main().then(() => process.exit(0)).catch(error => { console.error(error); process.exit(1); });

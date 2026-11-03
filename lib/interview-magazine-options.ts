@@ -1,11 +1,13 @@
 import type { InterviewOptions } from "./interview-magazine-types";
 
 export const DEFAULT_INTERVIEW_OPTIONS: InterviewOptions = {
+  readRecentMemory: true,
   participation: "guest", flow: "turns", sceneInstructions: "", discussion: false, questionAsHost: true,
 };
 
 export function normalizeInterviewOptions(value?: Partial<InterviewOptions>): InterviewOptions {
   return {
+    readRecentMemory: value?.readRecentMemory !== false,
     participation: ["guest", "spectator", "backstage", "host", "flexible"].includes(value?.participation || "") ? value!.participation! : "guest",
     flow: value?.flow === "all" || value?.flow === "all_user" ? value.flow : "turns",
     sceneInstructions: typeof value?.sceneInstructions === "string" ? value.sceneInstructions.slice(0, 6000) : "",

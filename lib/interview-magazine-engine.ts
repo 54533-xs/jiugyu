@@ -5,6 +5,8 @@ import type { Character } from "./character-types";
 import type { UserIdentity } from "@/components/settings/user-identity";
 import { previewMessagesForApi, sendLLMRequest, sendLLMStreamRequest, ChatEngineError } from "./chat-engine";
 import { interviewParticipationPrompt } from "./interview-magazine-options";
+import { buildInterviewRecentMemory } from "./interview-magazine-recent-memory";
+import { throwIfAborted } from "./abort-utils";
 import { assemblePromptPayload, type LLMMessage } from "./llm-prompt-assembler";
 import { MacroEngine } from "./macro-engine";
 import { normalizeUserNameToMacro } from "./user-macro";
@@ -413,14 +415,18 @@ function buildHostBriefing(params: {
   ].join("\n");
 }
 
-type InterviewRunControls = { signal?: AbortSignal; options?: InterviewOptions; userAsGuest?: boolean; target?: "user" | "character" };
+type InterviewRunControls = { signal?: AbortSignal; options?: InterviewOptions; userAsGuest?: boolean; target?: "user" | "character"; includeRecentMemory?: boolean };
 
 async function callHostJson<T>(context: InterviewContext, systemPrompt: string, userPrompt: string, controls?: InterviewRunControls): Promise<T | null> {
+  const recent = await buildInterviewRecentMemory(context.guests.map(guest => ({ id: guest.character.id, name: guest.character.name })), context.userName,
+    controls?.options?.readRecentMemory !== false && controls?.includeRecentMemory !== false);
+  throwIfAborted(controls?.signal);
   const raw = await sendLLMRequest(
     context.apiConfig,
     null,
     [
       { role: "system", content: controls?.options ? `${systemPrompt}\n${interviewParticipationPrompt(controls.options, context.userName, controls.userAsGuest)}${controls.target === "user" ? `\n当前任务仅向${context.userName}提问，然后等待其真实输入，不向角色提问或代替其回答。` : ""}` : systemPrompt },
+      ...(recent ? [{ role: "system" as const, content: recent }] : []),
       { role: "user", content: userPrompt },
     ],
     [],
@@ -572,6 +578,8 @@ export async function generateCharacterInterviewAnswer(params: {
     .map((message) => message.content)
     .join("\n\n");
   const lastUserAnswer = params.lastUserAnswer ?? [...params.transcript].reverse().find(message => message.role === "user" && message.kind !== "question")?.content ?? "";
+  const recent = await buildInterviewRecentMemory([{ id: guest.character.id, name: guest.character.name }], context.userName, params.options?.readRecentMemory !== false);
+  throwIfAborted(params.signal);
 
   const llmMessages = assemblePromptPayload({
     character: guest.character,
@@ -603,6 +611,7 @@ export async function generateCharacterInterviewAnswer(params: {
     params.phase === "reaction" ? "这是用户回答后的反应轮。具体回应用户刚刚说的话，不重复上一轮完整答案，不另起一道采访题。" : "",
     params.phase === "discussion" ? "这是讨论轮。阅读已完成的实录，自然回应其他嘉宾的具体观点，允许有分歧，避免轮流复述同一句话。" : "",
   ].filter(Boolean).join("\n") });
+  if (recent) llmMessages.push({ role: "system", content: recent });
   const requestOptions = { appId: INTERVIEW_MAGAZINE_APP_ID, appTags: ["interview_magazine", "answer"], signal: params.signal };
   const raw = params.onDelta ? (await sendLLMStreamRequest(
     guest.apiConfig, guest.preset, llmMessages, guest.regexes,
@@ -620,6 +629,7 @@ export async function generateCharacterInterviewAnswer(params: {
 }
 
 export async function previewInterviewMagazinePromptPayload(params: {
+  options?: InterviewOptions;
   theme: string;
   characterIds: string | string[];
   mode: "opening" | "host" | "answer" | "article";
@@ -630,6 +640,8 @@ export async function previewInterviewMagazinePromptPayload(params: {
 }): Promise<{ messages: LLMMessage[]; characterName: string; model: string; presetName: string }> {
   const context = loadInterviewContextForGuests(normalizeCharacterIds(params.characterIds), params.userIdentityId);
   const transcript = params.transcript ?? [];
+  const recent = await buildInterviewRecentMemory((params.mode === "answer" ? [context.primaryGuest] : context.guests)
+    .map(guest => ({ id: guest.character.id, name: guest.character.name })), context.userName, params.options?.readRecentMemory !== false && params.mode !== "article");
   if (params.mode === "opening") {
     const briefing = buildHostBriefing({
       context,
@@ -660,7 +672,7 @@ export async function previewInterviewMagazinePromptPayload(params: {
       },
     ];
     return {
-      messages: previewMessagesForApi(context.apiConfig, null, messages),
+      messages: previewMessagesForApi(context.apiConfig, null, recent ? [...messages, { role: "system", content: recent }] : messages),
       characterName: "在场主持人·开场",
       model: context.apiConfig.defaultModel,
       presetName: "(无预设)",
@@ -699,7 +711,7 @@ export async function previewInterviewMagazinePromptPayload(params: {
       },
     ];
     return {
-      messages: previewMessagesForApi(context.apiConfig, null, messages),
+      messages: previewMessagesForApi(context.apiConfig, null, recent ? [...messages, { role: "system", content: recent }] : messages),
       characterName: "在场主持人",
       model: context.apiConfig.defaultModel,
       presetName: "(无预设)",
@@ -745,7 +757,7 @@ export async function previewInterviewMagazinePromptPayload(params: {
       },
     ];
     return {
-      messages: previewMessagesForApi(context.apiConfig, null, messages),
+      messages: previewMessagesForApi(context.apiConfig, null, recent ? [...messages, { role: "system", content: recent }] : messages),
       characterName: "在场主编·专栏",
       model: context.apiConfig.defaultModel,
       presetName: "(无预设)",
@@ -778,7 +790,7 @@ export async function previewInterviewMagazinePromptPayload(params: {
     interviewCharacterAnswerHistory: "",
   });
   return {
-    messages: previewMessagesForApi(guest.apiConfig, guest.preset, llmMessages),
+    messages: previewMessagesForApi(guest.apiConfig, guest.preset, recent ? [...llmMessages, { role: "system", content: recent }] : llmMessages),
     characterName: `在场:${guest.character.name}`,
     model: guest.apiConfig.defaultModel,
     presetName: guest.preset?.name ?? "默认预设",
@@ -828,7 +840,7 @@ export async function composeInterviewArticle(params: {
       "",
       '返回格式：{"title":"...","subtitle":"...","body":["..."],"pullQuote":"...","qa":[{"q":"...","a":"..."}],"memorySummary":"..."}',
     ].join("\n"),
-    { ...params, userAsGuest: params.transcript.some(message => message.role === "user" && message.kind !== "question") },
+    { ...params, includeRecentMemory: false, userAsGuest: params.transcript.some(message => message.role === "user" && message.kind !== "question") },
   );
 
   const fallbackTitle = params.theme.slice(0, 10) || "未命名访谈";
@@ -854,7 +866,9 @@ export async function composeInterviewArticle(params: {
   }
 
   if (!article.memorySummary) {
-    article.memorySummary = `围绕「${params.theme}」，${context.guestListText}与{{user}}完成了一期访谈；对谈集中在具体选择、关系张力和未说出口的态度变化上。`;
+    const userAnswered = params.transcript.some(message => message.role === "user" && message.kind !== "question");
+    const userHosted = params.transcript.some(message => message.role === "user" && message.kind === "question");
+    article.memorySummary = `围绕「${params.theme}」，${context.guestListText}${userAnswered ? "与{{user}}完成访谈" : userHosted ? "接受了{{user}}主持的访谈" : "完成了访谈"}。具体内容以实录为准。`;
   }
 
   return { context, article };

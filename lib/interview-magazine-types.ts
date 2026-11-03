@@ -50,6 +50,7 @@ export type InterviewTarget = "character" | "user";
 export type InterviewParticipation = "guest" | "spectator" | "backstage" | "host" | "flexible";
 export type InterviewFlow = "turns" | "all" | "all_user";
 export type InterviewOptions = {
+  readRecentMemory: boolean;
   participation: InterviewParticipation;
   flow: InterviewFlow;
   sceneInstructions: string;
@@ -133,6 +134,7 @@ export type InterviewArticle = {
 };
 
 export type InterviewIssue = {
+  memoryWrittenCharacterIds?: string[];
   options?: InterviewOptions;
   id: string;
   issueNumber: number;

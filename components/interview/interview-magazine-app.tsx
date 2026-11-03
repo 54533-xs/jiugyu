@@ -43,7 +43,6 @@ import {
 } from "@/lib/interview-magazine-storage";
 import {
   deleteInterviewMagazineProjectionEventForIssue,
-  recordInterviewMagazineProjectionEvent,
 } from "@/lib/interview-magazine-memory";
 import {
   INTERVIEW_MAGAZINE_DEFAULT_HOST_PROMPT,
@@ -56,8 +55,7 @@ import {
   type InterviewIssue,
   type InterviewMessage,
 } from "@/lib/interview-magazine-types";
-import { incrementEventCounter } from "@/lib/memory-storage";
-import { maybeRunSummarization } from "@/lib/memory-summarizer";
+import { InterviewMemoryPanel } from "./interview-memory-panel";
 import { loadUserIdentities, resolveUserIdentity } from "@/lib/settings-storage";
 import { InterviewLiveSession, InterviewOptionsEditor } from "./interview-live-session";
 import { DEFAULT_INTERVIEW_OPTIONS, normalizeInterviewOptions } from "@/lib/interview-magazine-options";
@@ -711,25 +709,6 @@ export function InterviewMagazineApp({ onClose }: Props) {
         updatedAt: now,
       };
       const savedIssues = saveInterviewIssue(issue);
-      recordInterviewMagazineProjectionEvent({
-        userRole: useLiveInterview ? completedTranscript.some(message => message.role === "user" && message.kind !== "question") ? "guest"
-          : completedTranscript.some(message => message.role === "user" && message.kind === "question") ? "host" : "observer" : undefined,
-        issueId: issue.id,
-        issueNumber,
-        title: issue.article.title,
-        theme,
-        characterIds: issue.characterIds || [issue.characterId],
-        characterNames: issue.characterNames || [issue.characterName],
-        userName: issue.userName,
-        summary: issue.article.memorySummary || issue.article.subtitle,
-        timestamp: now,
-      });
-      for (const guest of result.context.guests) {
-        incrementEventCounter(guest.character.id);
-        maybeRunSummarization(guest.character.id, guest.character.name).catch((summarizeError) => {
-          console.warn("[InterviewMagazine] Summarization check failed:", summarizeError);
-        });
-      }
       setIssues(savedIssues);
       if (draftToDelete) {
         setDrafts(deleteInterviewDraft(draftToDelete));
@@ -827,6 +806,7 @@ export function InterviewMagazineApp({ onClose }: Props) {
         ) : screen === "article" && activeIssue ? (
           <ArticleScreen
             issue={activeIssue}
+            onMemorySaved={issue => { setActiveIssue(issue); setIssues(loadInterviewIssues()); }}
             onBack={() => {
               setActiveIssue(null);
               resetDraft();
@@ -1486,9 +1466,11 @@ function GeneratingScreen({ onBack }: { onBack: () => void }) {
 function ArticleScreen({
   issue,
   onBack,
+  onMemorySaved,
 }: {
   issue: InterviewIssue;
   onBack: () => void;
+  onMemorySaved: (issue: InterviewIssue) => void;
 }) {
   const guestNames = getIssueGuestNames(issue);
   const guestLabel = guestNames.join("、") || issue.characterName;
@@ -1561,6 +1543,8 @@ function ArticleScreen({
               </div>
             </div>
           )}
+
+          <InterviewMemoryPanel key={issue.id} issue={issue} onSaved={onMemorySaved} />
 
           <div className="mt-16 pt-8 border-t border-white/5">
             <SmallCaps className="text-white/30 mb-4 block">TRANSCRIPT // 原始访谈实录</SmallCaps>
