@@ -8,6 +8,7 @@ import { storeMediaBlob } from "./media-cache-storage";
 import { throwIfAborted } from "./abort-utils";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 import { sha256TextHex } from "./sha256-stream";
+import { faceCropPixels, type FaceCrop } from "./face-crop";
 import { descriptionNeedsUserReference } from "./image-reference-selection";
 import {
   NOVELAI_COMMON_MODELS,
@@ -155,7 +156,7 @@ function loadDataUrlImage(dataUrl: string): Promise<HTMLImageElement> {
 
 async function normalizeReferenceImageForEdit(
   dataUrl: string,
-  crop?: { x: number; y: number; size: number },
+  crop?: FaceCrop,
 ): Promise<string> {
   if (!crop && dataUrlMimeType(dataUrl) === "image/png") return dataUrl;
   if (typeof document === "undefined") return dataUrl;
@@ -167,20 +168,13 @@ async function normalizeReferenceImageForEdit(
     if (!width || !height) return dataUrl;
 
     const canvas = document.createElement("canvas");
-    const normalizedSize = crop ? Math.max(0.18, Math.min(1, crop.size)) : 1;
-    const sourceSize = Math.max(1, Math.round(Math.min(width, height) * normalizedSize));
-    const sourceX = crop
-      ? Math.round(Math.max(0, Math.min(width - sourceSize, crop.x * width)))
-      : 0;
-    const sourceY = crop
-      ? Math.round(Math.max(0, Math.min(height - sourceSize, crop.y * height)))
-      : 0;
-    canvas.width = crop ? sourceSize : width;
-    canvas.height = crop ? sourceSize : height;
+    const region = crop ? faceCropPixels(crop, width, height) : { x: 0, y: 0, width, height };
+    canvas.width = region.width;
+    canvas.height = region.height;
     const context = canvas.getContext("2d");
     if (!context) return dataUrl;
     if (crop) {
-      context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, sourceSize, sourceSize);
+      context.drawImage(image, region.x, region.y, region.width, region.height, 0, 0, region.width, region.height);
     } else {
       context.drawImage(image, 0, 0, width, height);
     }

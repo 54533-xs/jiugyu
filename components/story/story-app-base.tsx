@@ -103,6 +103,7 @@ import { parseAIResponse } from "@/lib/rich-message-parser";
 import { SessionCustomCSS } from "@/components/ui/session-custom-css";
 import { MomentsFeed } from "@/components/chat/moments-feed";
 import { PhoneChatApp } from "@/components/chat/phone-chat-app";
+import { StoryFloatingPhoneWindow } from "./story-floating-phone-window";
 import { GiftPickerModal } from "@/components/chat/gift-picker-modal";
 import { TransferTargetModal } from "@/components/chat/transfer-target-modal";
 import { LocationInputModal, PhotoInputModal, RedPacketModal, VoiceRecordModal } from "@/components/chat/rich-input-modals";
@@ -2656,6 +2657,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
       ) : null}
       {floatingPhoneOpen ? (
         <div className="story-mini-phone-overlay" style={floatingPhoneViewportStyle} onClick={() => setFloatingPhoneOpen(false)}>
+          <StoryFloatingPhoneWindow compact={independentFloatingShell} onClose={() => setFloatingPhoneOpen(false)}>
           {!independentFloatingShell ? (
             <section className="story-floating-chat-app" onClick={(event) => event.stopPropagation()}>
               <PhoneChatApp
@@ -2805,6 +2807,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
           ) : null}
           </>
           )}
+          </StoryFloatingPhoneWindow>
         </div>
       ) : null}
 

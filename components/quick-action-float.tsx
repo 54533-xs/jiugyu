@@ -205,7 +205,7 @@ export function QuickActionFloat() {
                 });
         const width = Math.min(344, rect.width - 32);
         const statusSafeTop = getStatusSafeTop(layer);
-        const estimatedHeight = Math.min(520, Math.max(240, rect.height - statusSafeTop - 12));
+        const estimatedHeight = Math.min(560, Math.max(0, rect.height - statusSafeTop - 12));
         const left = posAnchor.left - width - 8;
         const top = posAnchor.top - estimatedHeight - 8;
         const maxTop = Math.max(statusSafeTop, rect.height - estimatedHeight - 12);
