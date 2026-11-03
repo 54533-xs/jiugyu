@@ -3,11 +3,12 @@
 import { useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { Minus, Move, Plus, X } from "lucide-react";
 import { floatingPhoneGeometry, type FloatingPhonePosition } from "@/lib/floating-phone-geometry";
+import { loadFloatingPhoneScale, saveFloatingPhoneScale } from "@/lib/floating-phone-settings";
 
 export function StoryFloatingPhoneWindow({ children, compact = false, onClose }: { children: ReactNode; compact?: boolean; onClose: () => void }) {
     const hostRef = useRef<HTMLDivElement>(null);
     const [bounds, setBounds] = useState({ width: 0, height: 0 });
-    const [scale, setScale] = useState(1);
+    const [scale, setScale] = useState(loadFloatingPhoneScale);
     const [position, setPosition] = useState<FloatingPhonePosition | null>(null);
     const drag = useRef<{ pointerId: number; clientX: number; clientY: number; x: number; y: number; scaleX: number; scaleY: number } | null>(null);
     const frame = floatingPhoneGeometry(bounds, scale, compact, position);
@@ -23,7 +24,7 @@ export function StoryFloatingPhoneWindow({ children, compact = false, onClose }:
         return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
     }, []);
 
-    const zoom = (value: number) => setScale(Math.round(Math.max(0.8, Math.min(1, value)) * 100) / 100);
+    const zoom = (value: number) => setScale(saveFloatingPhoneScale(value));
     const startMove = (event: PointerEvent<HTMLButtonElement>) => {
         const host = hostRef.current;
         if (!host) return;
