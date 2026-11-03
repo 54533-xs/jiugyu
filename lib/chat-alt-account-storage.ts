@@ -15,6 +15,8 @@ export type ChatAltAccount = {
     gender: string;
     age: string;
     signature: string;
+    /** 独立人物设定与背景，完全隔离主号人设，防掉马 */
+    persona?: string;
     /** 该小号自己的好友集合。主号通讯录不会被修改。 */
     friendCharacterIds: string[];
     createdAt: string;
@@ -33,6 +35,7 @@ function normalizeAccount(value: Partial<ChatAltAccount>): ChatAltAccount | null
         gender: typeof value.gender === "string" ? value.gender.trim() : "",
         age: typeof value.age === "string" ? value.age.trim() : "",
         signature: typeof value.signature === "string" ? value.signature.trim() : "",
+        persona: typeof value.persona === "string" ? value.persona.trim() : "",
         friendCharacterIds: Array.from(new Set(Array.isArray(value.friendCharacterIds)
             ? value.friendCharacterIds.filter((item): item is string => typeof item === "string" && !!item.trim()).map(item => item.trim())
             : [])),
@@ -59,7 +62,7 @@ export function saveChatAltAccounts(accounts: ChatAltAccount[]): void {
     window.dispatchEvent(new CustomEvent(CHAT_ALT_ACCOUNTS_UPDATED_EVENT));
 }
 
-export function createChatAltAccount(input: Pick<ChatAltAccount, "userIdentityId" | "nickname" | "gender" | "age" | "signature">): ChatAltAccount {
+export function createChatAltAccount(input: Pick<ChatAltAccount, "userIdentityId" | "nickname" | "gender" | "age" | "signature"> & { persona?: string }): ChatAltAccount {
     const now = new Date().toISOString();
     const account: ChatAltAccount = {
         id: `chat-alt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -68,12 +71,36 @@ export function createChatAltAccount(input: Pick<ChatAltAccount, "userIdentityId
         gender: input.gender.trim(),
         age: input.age.trim(),
         signature: input.signature.trim(),
+        persona: typeof input.persona === "string" ? input.persona.trim() : "",
         friendCharacterIds: [],
         createdAt: now,
         updatedAt: now,
     };
     saveChatAltAccounts([...loadChatAltAccounts(), account]);
     return account;
+}
+
+export function updateChatAltAccount(
+    id: string,
+    patch: Partial<Pick<ChatAltAccount, "userIdentityId" | "nickname" | "gender" | "age" | "signature" | "persona">>
+): ChatAltAccount | null {
+    const accounts = loadChatAltAccounts();
+    const index = accounts.findIndex(item => item.id === id);
+    if (index < 0) return null;
+    const current = accounts[index];
+    const updated: ChatAltAccount = {
+        ...current,
+        ...(patch.userIdentityId !== undefined && patch.userIdentityId.trim() ? { userIdentityId: patch.userIdentityId.trim() } : {}),
+        ...(patch.nickname !== undefined ? { nickname: patch.nickname.trim() || "未命名小号" } : {}),
+        ...(patch.gender !== undefined ? { gender: patch.gender.trim() } : {}),
+        ...(patch.age !== undefined ? { age: patch.age.trim() } : {}),
+        ...(patch.signature !== undefined ? { signature: patch.signature.trim() } : {}),
+        ...(patch.persona !== undefined ? { persona: patch.persona.trim() } : {}),
+        updatedAt: new Date().toISOString(),
+    };
+    accounts[index] = updated;
+    saveChatAltAccounts(accounts);
+    return updated;
 }
 
 export function findChatAltAccount(accountId?: string | null): ChatAltAccount | null {
@@ -105,19 +132,20 @@ export function removeChatAltAccountFriend(accountId: string, characterId: strin
     saveChatAltAccounts(accounts);
 }
 
-/** 将小号资料变成现有提示词装配器可识别的用户身份，并明确告知模型这不是主号本人。 */
+/** 将小号资料组装为独立人物身份：完全隔绝主号人设背景，彻底消除小号/掉马暗示。 */
 export function resolveChatAltAccountIdentity(accountId?: string | null): UserIdentity | null {
     const account = findChatAltAccount(accountId);
     if (!account) return null;
     const base = loadUserIdentities().find(item => item.id === account.userIdentityId);
     if (!base) return null;
     const accountDescription = [
-        "当前聊天对象使用的是独立聊天小号，不是该用户身份的主号。",
-        `小号网名：${account.nickname}。`,
-        account.gender ? `小号填写的性别：${account.gender}。` : "",
-        account.age ? `小号填写的年龄：${account.age}。` : "",
-        account.signature ? `小号个性签名：${account.signature}。` : "",
-        "角色应把这个小号当作尚未确认真实身份的独立联系人；除非聊天中明确透露，不得自动认定其就是主号用户。",
+        "【当前用户档案】",
+        "当前与你对话的用户为独立人物：",
+        `- 称呼/网名：${account.nickname}`,
+        account.gender ? `- 性别：${account.gender}` : "",
+        account.age ? `- 年龄：${account.age}` : "",
+        account.signature ? `- 个性签名：${account.signature}` : "",
+        account.persona ? `- 人物背景与设定：\n${account.persona}` : "",
     ].filter(Boolean).join("\n");
     return {
         ...base,
@@ -127,6 +155,6 @@ export function resolveChatAltAccountIdentity(accountId?: string | null): UserId
         age: account.age || "未填写",
         bio: account.signature,
         occupation: "",
-        customSettings: [base.customSettings, accountDescription].filter(Boolean).join("\n\n"),
+        customSettings: accountDescription,
     };
 }
