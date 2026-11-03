@@ -48,7 +48,8 @@ function MiniPhoneIcon({ size = 18 }: { size?: number }) {
     </svg>
   );
 }
-import CSSSchemeBar from "@/components/ui/css-scheme-picker";
+import { StoryAppearanceEditor } from "./story-appearance-editor";
+import { isStoryReadingPanelVisible, storyAppearanceStyle, type StoryAppearancePrefs } from "@/lib/story-appearance";
 import { Avatar } from "@/components/ui/primitives";
 import { StoryHtmlRenderer, type StoryVoiceSegment } from "@/components/ui/story-html-renderer";
 import { StorySettingsPage, STORY_DEFAULT_STATUS_RENDER, STORY_DEFAULT_THEATER_RENDER } from "@/components/story/story-settings-page";
@@ -107,7 +108,6 @@ import { StoryFloatingPhoneWindow } from "./story-floating-phone-window";
 import { GiftPickerModal } from "@/components/chat/gift-picker-modal";
 import { TransferTargetModal } from "@/components/chat/transfer-target-modal";
 import { LocationInputModal, PhotoInputModal, RedPacketModal, VoiceRecordModal } from "@/components/chat/rich-input-modals";
-import { STORY_CSS_EXAMPLE } from "@/lib/css-examples";
 import { applyEditOutputRegex } from "@/lib/llm-prompt-assembler";
 import { MacroEngine } from "@/lib/macro-engine";
 import { kvGet, kvSet, registerKvMigration } from "@/lib/kv-db";
@@ -235,15 +235,6 @@ function formatStoryTime(iso: string): string {
   return `${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-const CSS_EXAMPLE = STORY_CSS_EXAMPLE;
-const STORY_THEMES = [
-  { id: "paper", color: "#94a3b8", name: "纸白" },
-  { id: "warm", color: "#b89870", name: "手账" },
-  { id: "night", color: "#3a4560", name: "夜读" },
-  { id: "ink", color: "#1a1a1a", name: "水墨" },
-  { id: "rose", color: "#d4889a", name: "玫瑰" },
-  { id: "sage", color: "#7a9a6a", name: "青苔" },
-] as const;
 
 function getStoryPreview(messages: StoryMessage[]): string {
   const last = messages[messages.length - 1];
@@ -546,7 +537,6 @@ export function StoryApp({ onClose }: StoryAppProps) {
   const [messages, setMessages] = useState<StoryMessage[]>([]);
   const [visibleMessageCount, setVisibleMessageCount] = useState(STORY_INITIAL_LOAD);
   const [composerAppendRequest, setComposerAppendRequest] = useState<StoryComposerAppendRequest | null>(null);
-  const [customCssDraft, setCustomCssDraft] = useState("");
   const [foldTagsDraft, setFoldTagsDraft] = useState("");
   const [contextExcludedTagsDraft, setContextExcludedTagsDraft] = useState("");
   // 生成状态按会话记录：避免在 A 会话生成时切到 B 会话也显示"正在生成"
@@ -568,6 +558,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [cssModalOpen, setCssModalOpen] = useState(false);
+  const [appearancePreview, setAppearancePreview] = useState<StoryAppearancePrefs | null>(null);
   const [quickStoryOpen, setQuickStoryOpen] = useState(false);
   const [quickStoryIndependent, setQuickStoryIndependent] = useState(false);
   const [playingVoiceSegmentId, setPlayingVoiceSegmentId] = useState<string | null>(null);
@@ -626,10 +617,11 @@ export function StoryApp({ onClose }: StoryAppProps) {
   const storyDisplayName = activeGroup?.name || currentCharacter?.name || "剧情";
   const storyAvatar = ownerMainSession?.storyAvatar || currentCharacter?.avatar || "";
   const uiPrefs = currentSession?.uiPrefs || {};
+  // Preview geometry stays inside the editor so canceling cannot shift the reading position.
+  const readingPanelVisible = isStoryReadingPanelVisible(uiPrefs);
   const customFontSource = uiPrefs.customFontDataUrl || uiPrefs.customFontUrl || "";
-  const storyShellStyle = customFontSource
-    ? ({ "--story-font": '"StoryCustomFont", "Noto Serif SC", "Songti SC", serif' } as CSSProperties)
-    : undefined;
+  const storyShellStyle = { ...storyAppearanceStyle(uiPrefs), ...(customFontSource
+    ? { "--story-font": '"StoryCustomFont", "Noto Serif SC", "Songti SC", serif' } : {}) } as CSSProperties;
   const customFontFace = customFontSource
     ? `@font-face{font-family:"StoryCustomFont";src:url(${JSON.stringify(customFontSource)});font-display:swap;}`
     : "";
@@ -827,7 +819,6 @@ export function StoryApp({ onClose }: StoryAppProps) {
     activeSessionIdRef.current = session.id;
     setVisibleMessageCount(STORY_INITIAL_LOAD);
     setMessages(loadStoryMessages(session.id));
-    setCustomCssDraft(session.customCSS || "");
     setFoldTagsDraft(session.foldTags ?? "think,thinking,story_status,story_theater");
     setContextExcludedTagsDraft(session.contextExcludedTags ?? "think,thinking,story_theater");
     const ownerKey = getStorySessionOwnerKey(session);
@@ -910,7 +901,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
     const onCSSUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.sessionId === activeSessionId) {
-        setCustomCssDraft(detail.css || "");
+        setStorageVersion(value => value + 1);
       }
     };
     window.addEventListener("story-session-css-updated", onCSSUpdate);
@@ -1300,7 +1291,6 @@ export function StoryApp({ onClose }: StoryAppProps) {
     if (!currentSession) return;
     const next = updateStorySession(currentSession.id, updates);
     if (!next) return;
-    setCustomCssDraft(next.customCSS || "");
     setFoldTagsDraft(next.foldTags ?? "think,thinking,story_status,story_theater");
     setContextExcludedTagsDraft(next.contextExcludedTags ?? "think,thinking,story_theater");
     setStorageVersion((value) => value + 1);
@@ -1389,7 +1379,6 @@ export function StoryApp({ onClose }: StoryAppProps) {
     const next = updateStorySession(sessionId, updates);
     if (!next) return;
     if (next.id === activeSessionId) {
-      setCustomCssDraft(next.customCSS || "");
       setFoldTagsDraft(next.foldTags ?? "think,thinking,story_status,story_theater");
       setContextExcludedTagsDraft(next.contextExcludedTags ?? "think,thinking,story_theater");
     }
@@ -2327,7 +2316,6 @@ export function StoryApp({ onClose }: StoryAppProps) {
             applySessionUpdates({ foldTags: foldTags.trim() || undefined, contextExcludedTags: contextExcludedTags.trim() || undefined });
           }}
           onCustomCSSChange={(css) => {
-            setCustomCssDraft(css);
             applySessionUpdates({ customCSS: css });
           }}
           onOpenCss={() => {
@@ -2352,7 +2340,8 @@ export function StoryApp({ onClose }: StoryAppProps) {
   return (
     <div
       className={`story-app-shell story-session-${currentSession.id}`}
-      data-story-theme={uiPrefs.theme || "paper"}
+      data-story-theme={appearancePreview?.theme || uiPrefs.theme || "paper"}
+      data-story-reading-panel={readingPanelVisible ? "shown" : "hidden"}
       style={storyShellStyle}
       onTouchStart={(event) => handleTouchStart(event.touches[0]?.clientX || 0)}
       onTouchMove={(event) => handleTouchMove(event.touches[0]?.clientX || 0)}
@@ -2412,8 +2401,8 @@ export function StoryApp({ onClose }: StoryAppProps) {
             autoBottomLockRef.current = distanceFromBottom <= 12;
           }}
         >
-          <div className="story-stage-inner">
-            
+          <div className={`story-stage-inner${readingPanelVisible ? "" : " story-free-layout"}`}>
+
             {/* ====== 顶部信息阅读卡片 ====== */}
             <div className="story-meta">
               <div className="story-meta-layout">
@@ -2537,6 +2526,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
                             </div>
                           ) : (
                             <StoryHtmlRenderer
+                              colorDialogue={!readingPanelVisible}
                               content={message.renderedContent || message.rawContent}
                               messageId={message.id}
                               onOptionSelect={handleOptionSelect}
@@ -2862,128 +2852,18 @@ export function StoryApp({ onClose }: StoryAppProps) {
         </div>
       ) : null}
 
-      {/* CSS Style Modal */}
-      {cssModalOpen && (
-        <div style={{
-          position: "absolute", inset: 0, zIndex: 300,
-          background: "var(--c-story-bg-top, #fdfdfd)",
-          display: "flex", flexDirection: "column",
-        }}>
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "52px 20px 14px",
-            borderBottom: "1px solid rgba(0,0,0,0.04)",
-          }}>
-            <span style={{ fontSize: "calc(13px*var(--app-text-scale,1))", letterSpacing: "0.08em", textTransform: "uppercase" as const, fontWeight: 500, color: "var(--c-story-sub, #94a3b8)" }}>
-              页面样式
-            </span>
-            <button className="story-top-btn" onClick={() => setCssModalOpen(false)}>
-              <XMarkIcon width={17} height={17} />
-            </button>
-          </div>
-          <div style={{ flex: 1, overflow: "auto", padding: "14px 20px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 8 }}>
-                {STORY_THEMES.map(t => {
-                  const active = (uiPrefs.theme || "paper") === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      aria-label={`切换到${t.name}主题`}
-                      aria-pressed={active}
-                      onClick={() => applySessionUpdates({ uiPrefs: { ...uiPrefs, theme: t.id } })}
-                      style={{
-                        minHeight: 54,
-                        borderRadius: 0,
-                        border: "none",
-                        boxShadow: "none",
-                        background: active ? "var(--c-story-panel-active, rgba(148,163,184,0.12))" : "var(--c-story-panel, rgba(255,255,255,0.5))",
-                        color: "var(--c-story-text, #3a3b3c)",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 5,
-                        padding: "7px 4px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <span style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: "50%",
-                        background: t.color,
-                        border: "none",
-                        boxShadow: active
-                          ? "inset 0 0 0 2px var(--c-story-bg-top, #fdfdfd), 0 0 0 2px var(--c-story-text, #3a3b3c)"
-                          : "none",
-                      }} />
-                      <span style={{ fontSize: "calc(11px*var(--app-text-scale,1))", color: "var(--c-story-sub, #94a3b8)", lineHeight: 1.1 }}>{t.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <textarea
-              className="story-css-box"
-              value={customCssDraft}
-              onChange={(event) => setCustomCssDraft(event.target.value)}
-              placeholder={`/* 这里写剧情模式的 session CSS */\n.story-bubble { border-radius: 30px; }\n.story-composer { backdrop-filter: blur(24px); }`}
-              style={{ flex: 1, minHeight: 280 }}
-            />
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <CSSSchemeBar target="story" currentCSS={customCssDraft} onLoad={setCustomCssDraft} btnStyle={{
-                border: "none",
-                borderRadius: 0,
-                boxShadow: "none",
-                background: "var(--c-story-btn-bg, rgba(255,255,255,0.5))",
-                color: "var(--c-story-text, #3a3b3c)",
-              }} modalVars={{
-                panel: "var(--c-story-drawer-top, #fdfdfd)",
-                border: "var(--c-story-drawer-border, rgba(0,0,0,0.06))",
-                text: "var(--c-story-text, #3a3b3c)",
-                textDim: "var(--c-story-sub, #94a3b8)",
-                input: "var(--c-story-css-box-bg, rgba(248,250,252,0.6))",
-                inputBorder: "var(--c-story-panel-border, rgba(0,0,0,0.06))",
-                accent: "var(--c-story-send-bg-active, #0f172a)",
-              }} />
-              <button
-                onClick={() => setCustomCssDraft(CSS_EXAMPLE)}
-                style={{
-                  flex: 1, padding: "12px 0", borderRadius: 0,
-                  border: "none", boxShadow: "none",
-                  background: "var(--c-story-btn-bg, rgba(255,255,255,0.5))", color: "var(--c-story-text, #3a3b3c)",
-                  fontSize: "calc(12px*var(--app-text-scale,1))", fontWeight: 500, cursor: "pointer",
-                }}
-              >
-                加载示例
-              </button>
-              <button
-                onClick={() => setCustomCssDraft("")}
-                style={{
-                  flex: 1, padding: "12px 0", borderRadius: 0,
-                  border: "none", boxShadow: "none",
-                  background: "var(--c-story-btn-bg, rgba(255,255,255,0.5))", color: "var(--c-story-text, #3a3b3c)",
-                  fontSize: "calc(12px*var(--app-text-scale,1))", fontWeight: 500, cursor: "pointer",
-                }}
-              >
-                清除
-              </button>
-              <button
-                onClick={() => { applySessionUpdates({ customCSS: customCssDraft }); setCssModalOpen(false); }}
-                style={{
-                  flex: 1, padding: "12px 0", borderRadius: 0, border: "none", boxShadow: "none",
-                  background: "var(--c-story-send-bg-active, #dbe3ea)", color: "var(--c-story-send-color-active, #475569)",
-                  fontSize: "calc(12px*var(--app-text-scale,1))", fontWeight: 500, cursor: "pointer",
-                }}
-              >
-                应用
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {cssModalOpen && <StoryAppearanceEditor key={currentSession.id}
+        initialPrefs={uiPrefs} initialCSS={currentSession.customCSS || ""}
+        userName={userIdentity?.name?.trim() || "我"} characterName={storyDisplayName}
+        userAvatar={userIdentity?.avatarUrl || undefined} characterAvatar={storyAvatar || undefined}
+        onPreview={setAppearancePreview}
+        onClose={() => { setAppearancePreview(null); setCssModalOpen(false); }}
+        onSave={(prefs, css) => {
+          applySessionUpdates({ uiPrefs: { ...uiPrefs, ...prefs }, customCSS: css });
+          setAppearancePreview(null);
+          setCssModalOpen(false);
+        }}
+      />}
     </div>
   );
 }
