@@ -2029,6 +2029,7 @@ export async function buildChatPromptMessages(
     if (chineseThinkingEnabled) {
         llmMessages.push({ role: "system", content: buildChineseThinkingPrompt(
             userIdentity?.name || "你", preset?.online_thinking_tag?.trim() || "thinking", [character.name],
+            session.chineseThinkingPromptLength,
         ) });
     }
     const avatarChangeIntent = !session.isGroup

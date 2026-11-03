@@ -512,6 +512,7 @@ async function buildGroupChatPromptMessages(
     if (chineseThinkingEnabled) {
         llmMessages.push({ role: "system", content: buildChineseThinkingPrompt(
             userName, preset?.online_thinking_tag?.trim() || "thinking", memberNames,
+            session.chineseThinkingPromptLength,
         ) });
     }
     if (promptProfile?.output === "plain_text") {

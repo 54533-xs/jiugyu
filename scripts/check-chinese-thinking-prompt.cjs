@@ -23,6 +23,15 @@ async function main() {
     assert.equal(helper.withChineseThinkingPrompt(preset, true).online_thinking_enabled, true);
     assert.equal(preset.online_thinking_enabled, false, "Must not change the shared preset");
     assert.match(helper.buildChineseThinkingPrompt("简初"), /<thinking>/);
+    assert.match(helper.buildChineseThinkingPrompt("简初"), /约100字/);
+    for (const length of [100, 300, 500]) {
+        assert.equal(helper.normalizeChineseThinkingPromptLength(length), length);
+        assert.match(helper.buildChineseThinkingPrompt("简初", "thinking", ["甲", "乙"], length), new RegExp(`约${length}字`));
+    }
+    for (const invalid of [undefined, null, 0, 200, "500", NaN]) {
+        assert.equal(helper.normalizeChineseThinkingPromptLength(invalid), 100);
+        assert.match(helper.buildChineseThinkingPrompt("简初", "thinking", undefined, invalid), /约100字/);
+    }
     assert.equal(helper.withChineseThinkingPrompt(null, true).online_thinking_enabled, true);
     const session = { id: "session", contactId: "char", chatAccountId: "alt", chineseThinkingPromptEnabled: false };
     const history = [{ id: "user-message", sessionId: session.id, role: "user", content: "你好", createdAt: "2026-11-02" }];
@@ -63,6 +72,13 @@ async function main() {
     assert.ok(!prompt.includes("主号昵称"));
     assert.match(prompt, /<inner_note>/);
     assert.ok(!prompt.includes("二哈"));
+    assert.match(prompt, /约100字/);
+    for (const length of [100, 300, 500]) {
+        session.chineseThinkingPromptLength = length;
+        const selected = await engine.buildChatPromptMessages({ ...session, chineseThinkingPromptLength: 100 }, history);
+        assert.match(selected.llmMessages.find(message => String(message.content).includes("【内置中文思考展示提示词】")).content,
+            new RegExp(`约${length}字`), "Must use the latest saved length in private chat");
+    }
     assert.equal(enabled.preset.online_thinking_tag, "inner_note");
     assert.equal(engine.stripOnlineThinkingTag("<inner_note>我想先关心小林。</inner_note>\n你好。", "inner_note"), "你好。");
     const stream = load("lib/stream-preview.ts", { "./text-tool-protocol": { stripTextToolDirectives: text => text } });
@@ -76,10 +92,17 @@ async function main() {
     session.isGroup = true;
     session.participantIds = ["char"];
     assert.equal(hasPrompt(await group.testBuild(session, history)), true);
+    for (const length of [100, 300, 500]) {
+        session.chineseThinkingPromptLength = length;
+        const selected = await group.testBuild({ ...session, chineseThinkingPromptLength: 100 }, history);
+        const monologuePrompt = selected.llmMessages.find(message => String(message.content).includes("【内置中文思考展示提示词】")).content;
+        assert.match(monologuePrompt, new RegExp(`约${length}字`), "Must use the latest saved length in group chat");
+        assert.match(monologuePrompt, /所有角色独白的合计字数/);
+    }
     assert.equal(hasPrompt(await group.testBuild(session, history, { appTags: ["group_chat", "offline"] })), false);
     session.chineseThinkingPromptEnabled = false;
     assert.equal(hasPrompt(await group.testBuild(session, history)), false);
     assert.equal(preset.online_thinking_enabled, false);
-    console.log("✅ 中文思考提示词回归通过：默认关闭、会话开关、小号昵称、自定义标签、私聊群聊、线下/自定义任务隔离、预设不变");
+    console.log("✅ 中文思考提示词回归通过：默认关闭、会话开关、100/300/500字与异常值、小号昵称、自定义标签、私聊群聊、线下/自定义任务隔离、预设不变");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

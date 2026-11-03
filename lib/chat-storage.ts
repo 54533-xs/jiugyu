@@ -16,6 +16,7 @@ import { extractTextToolDirectiveText } from "./text-tool-protocol";
 import { findUserAvatarChangeIntent, inferAvatarDecisionFromReply } from "./chat-avatar-intent";
 import { loadChatScope, resolveChatAccountUserIdentity } from "./chat-scope-storage";
 import type { Character } from "./character-types";
+import type { ChineseThinkingPromptLength } from "./chinese-thinking-prompt";
 
 export const DEFAULT_VISION_IMAGE_PROMPT_LIMIT = 1;
 export const MAX_VISION_IMAGE_PROMPT_LIMIT = 20;
@@ -83,6 +84,8 @@ export type ChatSession = {
     streamOnline?: boolean;
     /** 线上聊天附加中文角色独白提示词，使用现有思考展示区；默认关闭。 */
     chineseThinkingPromptEnabled?: boolean;
+    /** 展示用中文独白的目标字数；未设置时约 100 字。 */
+    chineseThinkingPromptLength?: ChineseThinkingPromptLength;
     /** 流式生成（线下）：开启后该会话的线下 AI 回复边生成边显示（默认关，保持原整段请求行为） */
     streamOffline?: boolean;
     /**

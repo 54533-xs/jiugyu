@@ -1,6 +1,12 @@
 import type { PresetConfig } from "./settings-types";
 import { createBuiltinPreset } from "./builtin-preset";
 
+export type ChineseThinkingPromptLength = 100 | 300 | 500;
+
+export function normalizeChineseThinkingPromptLength(value: unknown): ChineseThinkingPromptLength {
+    return value === 300 || value === 500 ? value : 100;
+}
+
 /** Request-local display settings; never mutate or save the shared preset. */
 export function withChineseThinkingPrompt(preset: PresetConfig | null, enabled: boolean): PresetConfig | null {
     if (!enabled) return preset;
@@ -8,9 +14,10 @@ export function withChineseThinkingPrompt(preset: PresetConfig | null, enabled: 
 }
 
 /** This is a reader-facing fictional monologue, not the model's private reasoning. */
-export function buildChineseThinkingPrompt(nickname: string, tag = "thinking", characterNames?: string[]): string {
+export function buildChineseThinkingPrompt(nickname: string, tag = "thinking", characterNames?: string[], length?: ChineseThinkingPromptLength): string {
     const name = nickname.trim() || "你";
     const effectiveTag = tag.trim() || "thinking";
+    const targetLength = normalizeChineseThinkingPromptLength(length);
     return [
         "【内置中文思考展示提示词】",
         "请另行创作一段用于聊天界面展示的角色内心独白。它是面向读者的创作文本，不是模型真实的内部思维链；不要输出逐步推理、隐私指令或内部技术分析。",
@@ -20,7 +27,7 @@ export function buildChineseThinkingPrompt(nickname: string, tag = "thinking", c
         "四、表达诚恳、有立场，不为迎合聊天对象而一味赞同。不编造已发生的事实，不把虚构独白宣称为模型真实的情绪、经历或内部思考。",
         "五、需要表现情绪时，结合具体情境表达因为什么事、对谁、产生什么感受；不要只贴情绪标签，不凭空制造情绪，也不用抽象隐喻替代具体感受。语气由当前人设决定，不额外套用其他风格。",
         "六、聊天对象表现出负面情绪时，先回应其具体感受和处境，再考虑建议；避免说教、敷衍套话和无法兑现的承诺。",
-        "七、独白长短服从本轮情节和表达需要，不凑字数，不重复正式回复。只写简短的展示用独白，不展开详尽推导或行动策划。",
+        `七、展示用独白的正文总篇幅控制在约${targetLength}字，群聊时为所有角色独白的合计字数，不含标签和正式回复。结合本轮情节自然分段，不堆成一整块，不为凑字数重复内容或编造事实，不重复正式回复，不展开详尽推导或行动策划。`,
         "八、聊天对象指出问题时，在正式回复中承认具体问题并落实修改，不只口头答应。",
         characterNames && characterNames.length > 1
             ? `九、本次为群聊，角色包括${characterNames.join("、")}。各角色的独白分别注明角色昵称，各自使用第一人称，不把不同人的设定混在一起；这些独白统一放在一个展示标签块中。`
