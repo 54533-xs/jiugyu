@@ -81,8 +81,8 @@ export function ChatScopeSwitcher({ onScopeChange }: { onScopeChange?: (scope: C
 
             {open && (
                 <BottomSheet title="筛选主页内容" onClose={() => setOpen(false)}>
-                    <div className="flex max-h-[58vh] flex-col overflow-y-auto pb-3">
-                        <div className="menu-group overflow-hidden">
+                    <div className="flex max-h-[68vh] flex-col overflow-y-auto pb-4 overscroll-contain">
+                        <div className="menu-group">
                             <ScopeMenuRow
                                 icon={<MessageCircleMore size={18} />}
                                 label="选择小号聊天"
@@ -96,7 +96,7 @@ export function ChatScopeSwitcher({ onScopeChange }: { onScopeChange?: (scope: C
                                 }}
                             />
                             {expanded === "account" && (
-                                <div className="border-t border-[var(--c-border)] bg-[var(--c-page-body-bg)] px-2 py-1">
+                                <div className="border-t border-[var(--c-border)] bg-[var(--c-page-body-bg)] px-2 py-1 max-h-[42vh] overflow-y-auto overscroll-contain">
                                     {!creatingAccount ? (
                                         <>
                                             <ScopeOption
@@ -179,7 +179,7 @@ export function ChatScopeSwitcher({ onScopeChange }: { onScopeChange?: (scope: C
                                 }}
                             />
                             {expanded === "identity" && (
-                                <div className="border-t border-[var(--c-border)] bg-[var(--c-page-body-bg)] px-2 py-1">
+                                <div className="border-t border-[var(--c-border)] bg-[var(--c-page-body-bg)] px-2 py-1 max-h-[42vh] overflow-y-auto overscroll-contain">
                                 <ScopeOption
                                     label="全部身份"
                                     description="显示所有身份绑定的内容"
@@ -215,7 +215,7 @@ export function ChatScopeSwitcher({ onScopeChange }: { onScopeChange?: (scope: C
                                 onClick={() => setExpanded(current => current === "world" ? null : "world")}
                             />
                             {expanded === "world" && (
-                                <div className="border-t border-[var(--c-border)] bg-[var(--c-page-body-bg)] px-2 py-1">
+                                <div className="border-t border-[var(--c-border)] bg-[var(--c-page-body-bg)] px-2 py-1 max-h-[42vh] overflow-y-auto overscroll-contain">
                                 <ScopeOption
                                     label="全部世界观"
                                     description="显示所有世界中的内容"
