@@ -7,7 +7,7 @@ import CSSSchemeBar from "@/components/ui/css-scheme-picker";
 import { StoryHtmlRenderer } from "@/components/ui/story-html-renderer";
 import { STORY_CSS_EXAMPLE } from "@/lib/css-examples";
 import { isStoryReadingPanelVisible, normalizeStoryBubbleAppearance, normalizeStoryMessageGap, storyAppearanceStyle, STORY_THEMES,
-  type StoryAppearancePrefs, type StoryBubbleAppearance } from "@/lib/story-appearance";
+  type StoryAppearance, type StoryAppearancePrefs, type StoryBubbleAppearance } from "@/lib/story-appearance";
 
 function RangeSetting({ label, value, min, max, step = 1, unit = "", onChange }: {
   label: string; value: number; min: number; max: number; step?: number; unit?: string; onChange: (value: number) => void;
@@ -17,14 +17,15 @@ function RangeSetting({ label, value, min, max, step = 1, unit = "", onChange }:
   </label>;
 }
 
-export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, characterName, userAvatar, characterAvatar, onPreview, onClose, onSave }: {
+export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, characterName, userAvatar, characterAvatar, onSettingsChange, onCSSChange, onApplyAppearance, onClose }: {
   initialPrefs: StoryAppearancePrefs; initialCSS: string; userName: string; characterName: string; userAvatar?: string; characterAvatar?: string;
-  onPreview: (prefs: StoryAppearancePrefs | null) => void; onClose: () => void; onSave: (prefs: StoryAppearancePrefs, css: string) => void;
+  onSettingsChange: (patch: Omit<StoryAppearancePrefs, "appearance">) => void; onCSSChange: (css: string) => void;
+  onApplyAppearance: (appearance: StoryAppearance | undefined) => void; onClose: () => void;
 }) {
   const [prefs, setPrefs] = useState<StoryAppearancePrefs>(() => ({ theme: initialPrefs.theme, wallpaper: initialPrefs.wallpaper,
     readingPanel: initialPrefs.readingPanel, appearance: initialPrefs.appearance }));
   const [css, setCSS] = useState(initialCSS);
-  const [role, setRole] = useState<"user" | "assistant">("user");
+  const [role, setRole] = useState<"user" | "assistant" | "both">("user");
   const [notice, setNotice] = useState("");
   const [wallpaperLoading, setWallpaperLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -32,13 +33,25 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
   const fileRequest = useRef(0);
   const [palette, setPalette] = useState({ backgroundColor: "#ffffff", textColor: "#334155", dialogueColor: "#334155", boldColor: "#1e293b" });
   const panelVisible = isStoryReadingPanelVisible(prefs);
-  const appearance = normalizeStoryBubbleAppearance(prefs.appearance?.[role]);
-  const patch = (next: Partial<StoryBubbleAppearance>) => setPrefs(previous => ({ ...previous, appearance: {
-    ...previous.appearance, [role]: { ...previous.appearance?.[role], ...next },
-  } }));
+  const displayRole = role === "both" ? "user" : role;
+  const appearance = normalizeStoryBubbleAppearance(prefs.appearance?.[displayRole]);
+  const patch = (next: Partial<StoryBubbleAppearance>) => {
+    setNotice("");
+    setPrefs(previous => {
+      const updated = { ...previous.appearance };
+      for (const target of role === "both" ? ["user", "assistant"] as const : [role]) {
+        updated[target] = { ...updated[target], ...next };
+      }
+      return { ...previous, appearance: updated };
+    });
+  };
+  const applySettings = (next: Omit<StoryAppearancePrefs, "appearance">) => {
+    setPrefs(previous => ({ ...previous, ...next }));
+    onSettingsChange(next);
+  };
+  const applyCSS = (next: string) => { setCSS(next); onCSSChange(next); };
 
-  useEffect(() => { onPreview(prefs); }, [prefs, onPreview]);
-  useEffect(() => () => { fileRequest.current++; onPreview(null); }, [onPreview]);
+  useEffect(() => () => { fileRequest.current++; }, []);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       if (!rootRef.current) return;
@@ -47,12 +60,12 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
         const value = style.getPropertyValue(key).trim();
         return /^#[\da-f]{6}$/i.test(value) ? value : fallback;
       };
-      const text = get(role === "user" ? "--c-story-text-user" : "--c-story-text", get("--c-story-text", "#334155"));
-      setPalette({ backgroundColor: get(role === "user" ? "--c-story-bubble-user" : "--c-story-bubble-bg", "#ffffff"),
+      const text = get(displayRole === "user" ? "--c-story-text-user" : "--c-story-text", get("--c-story-text", "#334155"));
+      setPalette({ backgroundColor: get(displayRole === "user" ? "--c-story-bubble-user" : "--c-story-bubble-bg", "#ffffff"),
         textColor: text, dialogueColor: text, boldColor: get("--c-story-heading", "#1e293b") });
     });
     return () => cancelAnimationFrame(frame);
-  }, [prefs.theme, role]);
+  }, [prefs.theme, displayRole]);
 
   const chooseWallpaper = (file?: File) => {
     if (!file) return;
@@ -60,7 +73,7 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
     setWallpaperLoading(true);
     const reader = new FileReader();
     reader.onload = () => { if (request === fileRequest.current && typeof reader.result === "string") {
-      setPrefs(previous => ({ ...previous, wallpaper: reader.result as string })); setNotice(""); setWallpaperLoading(false);
+      applySettings({ wallpaper: reader.result as string }); setNotice(""); setWallpaperLoading(false);
     } };
     reader.onerror = () => { if (request === fileRequest.current) { setNotice("壁纸读取失败，请重新选择图片"); setWallpaperLoading(false); } };
     reader.readAsDataURL(file);
@@ -68,7 +81,7 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
 
   const colorSetting = (key: "backgroundColor" | "textColor" | "dialogueColor" | "boldColor", label: string) => <div className="story-beautify-color" key={key}>
     <label><span>{label}</span><input type="color" aria-label={label} value={appearance[key] || palette[key]} onChange={event => patch({ [key]: event.target.value })} /></label>
-    {appearance[key] ? <button type="button" onClick={() => patch({ [key]: undefined })}>跟随主题</button> : <small>跟随主题</small>}
+    {(appearance[key] || (role === "both" && prefs.appearance?.assistant?.[key])) ? <button type="button" onClick={() => patch({ [key]: undefined })}>跟随主题</button> : <small>跟随主题</small>}
   </div>;
 
   return <div ref={rootRef} className="story-beautify-page" role="dialog" aria-modal="true" aria-label="剧情美化"
@@ -79,7 +92,7 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
         <h3>背景壁纸</h3>
         {prefs.wallpaper ? <img className="story-beautify-wallpaper" src={prefs.wallpaper} alt="当前剧情壁纸" /> : <p>未设置壁纸</p>}
         <div className="story-beautify-actions"><button type="button" onClick={() => fileRef.current?.click()}>选择壁纸</button>
-          {prefs.wallpaper && <button type="button" onClick={() => { fileRequest.current++; setWallpaperLoading(false); setPrefs(previous => ({ ...previous, wallpaper: undefined })); }}>清除壁纸</button>}</div>
+          {prefs.wallpaper && <button type="button" onClick={() => { fileRequest.current++; setWallpaperLoading(false); applySettings({ wallpaper: undefined }); }}>清除壁纸</button>}</div>
         <input ref={fileRef} hidden type="file" accept="image/*" onChange={event => { chooseWallpaper(event.target.files?.[0]); event.target.value = ""; }} />
       </section>
 
@@ -87,12 +100,12 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
         <h3>阅读面板</h3>
         <div className="story-beautify-tabs" role="group" aria-label="阅读面板">
           {([{ id: "auto", name: "自动" }, { id: "show", name: "保留" }, { id: "hide", name: "去掉" }] as const).map(option =>
-            <button key={option.id} type="button" aria-pressed={(prefs.readingPanel || "auto") === option.id} onClick={() => setPrefs(previous => ({ ...previous, readingPanel: option.id }))}>{option.name}</button>)}
+            <button key={option.id} type="button" aria-pressed={(prefs.readingPanel || "auto") === option.id} onClick={() => applySettings({ readingPanel: option.id })}>{option.name}</button>)}
         </div>
-        <p>{(prefs.readingPanel || "auto") === "auto" ? "自动：有壁纸时直接展示背景，没有壁纸时保留原阅读面板。" : panelVisible ? "保留原来的整块阅读面板。" : "去掉整块阅读面板与壁纸遮罩，单独设置用户和角色样式。"}</p>
+        <p>{(prefs.readingPanel || "auto") === "auto" ? "自动：有壁纸时直接展示背景，没有壁纸时保留原阅读面板。" : panelVisible ? "保留原来的整块阅读面板。" : "去掉整块阅读面板与壁纸遮罩，自定义用户和角色样式。"}</p>
       </section>
 
-      <label className="story-beautify-preset"><span>主题预设</span><select aria-label="主题预设" value={prefs.theme || "paper"} onChange={event => setPrefs(previous => ({ ...previous, theme: event.target.value }))}>
+      <label className="story-beautify-preset"><span>主题预设</span><select aria-label="主题预设" value={prefs.theme || "paper"} onChange={event => applySettings({ theme: event.target.value })}>
         {STORY_THEMES.map(theme => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
       </select></label>
 
@@ -101,7 +114,9 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
         <div className="story-beautify-tabs" role="group" aria-label="美化对象">
           <button type="button" aria-pressed={role === "user"} onClick={() => setRole("user")}>用户</button>
           <button type="button" aria-pressed={role === "assistant"} onClick={() => setRole("assistant")}>角色</button>
+          <button type="button" aria-pressed={role === "both"} onClick={() => setRole("both")}>一起设置</button>
         </div>
+        <p>{role === "both" ? "以用户当前数值显示，修改的项目同时应用双方，其余项目保留各自设置。" : "基础美化需保存并应用，关闭页面会放弃未保存的修改。"}</p>
         <h4>气泡</h4>
         {colorSetting("backgroundColor", "背景颜色")}
         <RangeSetting label="背景透明度" value={100 - appearance.backgroundOpacity} min={0} max={100} unit="％" onChange={value => patch({ backgroundOpacity: 100 - value })} />
@@ -120,9 +135,11 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
         <label className="story-beautify-preset"><span>头像形状</span><select aria-label="头像形状" value={appearance.avatarShape} onChange={event => patch({ avatarShape: event.target.value as StoryBubbleAppearance["avatarShape"] })}>
           <option value="square">方形</option><option value="rounded">圆角方形</option><option value="circle">圆形</option>
         </select></label>
-        <button className="story-beautify-reset-side" type="button" onClick={() => setPrefs(previous => ({ ...previous, appearance: { ...previous.appearance, [role]: undefined } }))}>恢复{role === "user" ? "用户" : "角色"}默认样式</button>
+        <button className="story-beautify-reset-side" type="button" onClick={() => { setNotice(""); setPrefs(previous => ({ ...previous, appearance: { ...previous.appearance,
+          ...(role === "both" ? { user: undefined, assistant: undefined } : { [role]: undefined }),
+        } })); }}>恢复{role === "both" ? "双方" : role === "user" ? "用户" : "角色"}默认样式</button>
         <h4>消息间距（双方共用）</h4>
-        <RangeSetting label="消息间距" value={normalizeStoryMessageGap(prefs.appearance?.messageGap)} min={8} max={64} unit="px" onChange={value => setPrefs(previous => ({ ...previous, appearance: { ...previous.appearance, messageGap: value } }))} />
+        <RangeSetting label="消息间距" value={normalizeStoryMessageGap(prefs.appearance?.messageGap)} min={8} max={64} unit="px" onChange={value => { setNotice(""); setPrefs(previous => ({ ...previous, appearance: { ...previous.appearance, messageGap: value } })); }} />
       </section>}
 
       <section className="story-beautify-card">
@@ -137,17 +154,17 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
             </article>)}
           </div>
         </div>
-        <p>基础样式实时预览；自定义 CSS 保存后生效，HTML 卡片保留自身样式。</p>
+        <p>基础美化在此预览，保存并应用后生效；壁纸、阅读面板、主题和 CSS 实时保存应用。HTML 卡片保留自身样式。</p>
       </section>
 
       <details className="story-beautify-card story-beautify-css"><summary>高级自定义 CSS</summary>
-        <textarea aria-label="剧情自定义 CSS" className="story-css-box" value={css} onChange={event => setCSS(event.target.value)} placeholder="在这里输入剧情页面 CSS" />
-        <div className="story-beautify-actions"><CSSSchemeBar target="story" currentCSS={css} onLoad={setCSS} />
-          <button type="button" onClick={() => setCSS(STORY_CSS_EXAMPLE)}>加载示例</button><button type="button" onClick={() => setCSS("")}>清除 CSS</button></div>
+        <textarea aria-label="剧情自定义 CSS" className="story-css-box" value={css} onChange={event => applyCSS(event.target.value)} placeholder="在这里输入剧情页面 CSS" />
+        <div className="story-beautify-actions"><CSSSchemeBar target="story" currentCSS={css} onLoad={applyCSS} />
+          <button type="button" onClick={() => applyCSS(STORY_CSS_EXAMPLE)}>加载示例</button><button type="button" onClick={() => applyCSS("")}>清除 CSS</button></div>
       </details>
-      <p className="story-beautify-notice" role="status">{wallpaperLoading ? "正在读取壁纸…" : notice || "重置恢复当前剧情的主题、壁纸、气泡和头像设置，并清空当前 CSS；已保存的 CSS 方案保留。"}</p>
+      <p className="story-beautify-notice" role="status">{wallpaperLoading ? "正在读取壁纸…" : notice || "壁纸、阅读面板、主题和 CSS 修改后立即保存，关闭美化不会撤销。"}</p>
     </main>
-    <footer><button type="button" onClick={() => { fileRequest.current++; setWallpaperLoading(false); setPrefs({ theme: "paper", wallpaper: undefined, readingPanel: "auto", appearance: undefined }); setCSS(""); setNotice("已恢复默认，保存并应用后生效。"); }}>重置美化</button>
-      <button type="button" className="story-beautify-save" disabled={wallpaperLoading} onClick={() => onSave(prefs, css)}>保存并应用</button></footer>
+    {!panelVisible && <footer><button type="button" onClick={() => { setPrefs(previous => ({ ...previous, appearance: undefined })); setNotice("基础美化已重置，保存并应用后生效。"); }}>重置基础美化</button>
+      <button type="button" className="story-beautify-save" onClick={() => { onApplyAppearance(prefs.appearance); setNotice("基础美化已保存并应用，可继续调整。"); }}>保存并应用</button></footer>}
   </div>;
 }

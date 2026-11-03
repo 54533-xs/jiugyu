@@ -49,7 +49,7 @@ function MiniPhoneIcon({ size = 18 }: { size?: number }) {
   );
 }
 import { StoryAppearanceEditor } from "./story-appearance-editor";
-import { isStoryReadingPanelVisible, storyAppearanceStyle, type StoryAppearancePrefs } from "@/lib/story-appearance";
+import { isStoryReadingPanelVisible, storyAppearanceStyle } from "@/lib/story-appearance";
 import { Avatar } from "@/components/ui/primitives";
 import { StoryHtmlRenderer, type StoryVoiceSegment } from "@/components/ui/story-html-renderer";
 import { StorySettingsPage, STORY_DEFAULT_STATUS_RENDER, STORY_DEFAULT_THEATER_RENDER } from "@/components/story/story-settings-page";
@@ -558,7 +558,6 @@ export function StoryApp({ onClose }: StoryAppProps) {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [cssModalOpen, setCssModalOpen] = useState(false);
-  const [appearancePreview, setAppearancePreview] = useState<StoryAppearancePrefs | null>(null);
   const [quickStoryOpen, setQuickStoryOpen] = useState(false);
   const [quickStoryIndependent, setQuickStoryIndependent] = useState(false);
   const [playingVoiceSegmentId, setPlayingVoiceSegmentId] = useState<string | null>(null);
@@ -2340,7 +2339,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
   return (
     <div
       className={`story-app-shell story-session-${currentSession.id}`}
-      data-story-theme={appearancePreview?.theme || uiPrefs.theme || "paper"}
+      data-story-theme={uiPrefs.theme || "paper"}
       data-story-reading-panel={readingPanelVisible ? "shown" : "hidden"}
       style={storyShellStyle}
       onTouchStart={(event) => handleTouchStart(event.touches[0]?.clientX || 0)}
@@ -2856,13 +2855,10 @@ export function StoryApp({ onClose }: StoryAppProps) {
         initialPrefs={uiPrefs} initialCSS={currentSession.customCSS || ""}
         userName={userIdentity?.name?.trim() || "我"} characterName={storyDisplayName}
         userAvatar={userIdentity?.avatarUrl || undefined} characterAvatar={storyAvatar || undefined}
-        onPreview={setAppearancePreview}
-        onClose={() => { setAppearancePreview(null); setCssModalOpen(false); }}
-        onSave={(prefs, css) => {
-          applySessionUpdates({ uiPrefs: { ...uiPrefs, ...prefs }, customCSS: css });
-          setAppearancePreview(null);
-          setCssModalOpen(false);
-        }}
+        onSettingsChange={patch => applySessionUpdates({ uiPrefs: patch })}
+        onCSSChange={css => applySessionUpdates({ customCSS: css })}
+        onApplyAppearance={appearance => applySessionUpdates({ uiPrefs: { appearance } })}
+        onClose={() => setCssModalOpen(false)}
       />}
     </div>
   );
