@@ -6,7 +6,7 @@ import { Avatar } from "@/components/ui/primitives";
 import CSSSchemeBar from "@/components/ui/css-scheme-picker";
 import { StoryHtmlRenderer } from "@/components/ui/story-html-renderer";
 import { STORY_CSS_EXAMPLE } from "@/lib/css-examples";
-import { isStoryReadingPanelVisible, normalizeStoryBubbleAppearance, normalizeStoryMessageGap, storyAppearanceStyle, STORY_THEMES,
+import { isStoryReadingPanelVisible, normalizeStoryChromeAppearance, storyChromeAttributes, storyMessageAppearanceAttributes, normalizeStoryBubbleAppearance, normalizeStoryMessageGap, storyAppearanceStyle, STORY_THEMES,
   type StoryAppearance, type StoryAppearancePrefs, type StoryBubbleAppearance } from "@/lib/story-appearance";
 
 function RangeSetting({ label, value, min, max, step = 1, unit = "", onChange }: {
@@ -23,7 +23,7 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
   onApplyAppearance: (appearance: StoryAppearance | undefined) => void; onClose: () => void;
 }) {
   const [prefs, setPrefs] = useState<StoryAppearancePrefs>(() => ({ theme: initialPrefs.theme, wallpaper: initialPrefs.wallpaper,
-    readingPanel: initialPrefs.readingPanel, appearance: initialPrefs.appearance }));
+    readingPanel: initialPrefs.readingPanel, chrome: initialPrefs.chrome, appearance: initialPrefs.appearance }));
   const [css, setCSS] = useState(initialCSS);
   const [role, setRole] = useState<"user" | "assistant" | "both">("user");
   const [notice, setNotice] = useState("");
@@ -34,6 +34,7 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
   const [palette, setPalette] = useState({ backgroundColor: "#ffffff", textColor: "#334155", dialogueColor: "#334155", boldColor: "#1e293b" });
   const panelVisible = isStoryReadingPanelVisible(prefs);
   const displayRole = role === "both" ? "user" : role;
+  const chrome = normalizeStoryChromeAppearance(prefs.chrome);
   const appearance = normalizeStoryBubbleAppearance(prefs.appearance?.[displayRole]);
   const patch = (next: Partial<StoryBubbleAppearance>) => {
     setNotice("");
@@ -49,6 +50,7 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
     setPrefs(previous => ({ ...previous, ...next }));
     onSettingsChange(next);
   };
+  const patchChrome = (next: Partial<NonNullable<StoryAppearancePrefs["chrome"]>>) => applySettings({ chrome: { ...prefs.chrome, ...next } });
   const applyCSS = (next: string) => { setCSS(next); onCSSChange(next); };
 
   useEffect(() => () => { fileRequest.current++; }, []);
@@ -109,6 +111,16 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
         {STORY_THEMES.map(theme => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
       </select></label>
 
+      <details className="story-beautify-card story-beautify-bars"><summary>顶栏、底栏与按钮</summary>
+        <p>两栏共用透明度与文字、图标颜色，设置后立即保存应用。</p>
+        <RangeSetting label="顶栏与底栏背景透明度" value={100 - chrome.barOpacity} min={0} max={100} unit="％" onChange={value => patchChrome({ barOpacity: 100 - value })} />
+        <RangeSetting label="两栏按钮透明度" value={100 - chrome.buttonOpacity} min={0} max={100} unit="％" onChange={value => patchChrome({ buttonOpacity: 100 - value })} />
+        <div className="story-beautify-color"><label><span>两栏文字与图标颜色</span><input type="color" aria-label="两栏文字与图标颜色" value={chrome.controlsColor || palette.textColor} onChange={event => patchChrome({ controlsColor: event.target.value })} /></label>
+          {chrome.controlsColor ? <button type="button" onClick={() => patchChrome({ controlsColor: undefined })}>跟随主题</button> : <small>跟随主题</small>}</div>
+        <label className="story-beautify-check"><input type="checkbox" aria-label="显示顶栏头像" checked={!chrome.hideHeaderAvatar} onChange={event => patchChrome({ hideHeaderAvatar: !event.target.checked })} /><span>显示左上角角色头像</span></label>
+        <button type="button" className="story-beautify-reset-side" onClick={() => applySettings({ chrome: undefined })}>恢复两栏默认设置</button>
+      </details>
+
       {!panelVisible && <section className="story-beautify-card">
         <h3>基础美化</h3>
         <div className="story-beautify-tabs" role="group" aria-label="美化对象">
@@ -131,6 +143,10 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
         <RangeSetting label="行间距" value={appearance.lineHeight} min={1.2} max={2.6} step={0.02} unit="倍" onChange={value => patch({ lineHeight: value })} />
         <RangeSetting label="段落间距" value={appearance.paragraphGap} min={0} max={32} unit="px" onChange={value => patch({ paragraphGap: value })} />
         <h4>头像</h4>
+        <label className="story-beautify-preset"><span>头像位置</span><select aria-label="头像位置" value={appearance.avatarLayout} onChange={event => patch({ avatarLayout: event.target.value as StoryBubbleAppearance["avatarLayout"] })}>
+          <option value="default">默认位置</option><option value="center">气泡上方居中</option><option value="reverse">左右对调（角色右／用户左）</option>
+        </select></label>
+        <p>居中时，昵称和时间排列在头像下方。</p>
         <RangeSetting label="头像大小" value={appearance.avatarSize} min={20} max={72} unit="px" onChange={value => patch({ avatarSize: value })} />
         <label className="story-beautify-preset"><span>头像形状</span><select aria-label="头像形状" value={appearance.avatarShape} onChange={event => patch({ avatarShape: event.target.value as StoryBubbleAppearance["avatarShape"] })}>
           <option value="square">方形</option><option value="rounded">圆角方形</option><option value="circle">圆形</option>
@@ -144,25 +160,30 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
 
       <section className="story-beautify-card">
         <h3>效果预览</h3>
-        <div className="story-beautify-preview" style={{ ...storyAppearanceStyle(prefs), backgroundImage: prefs.wallpaper ? `url(${JSON.stringify(prefs.wallpaper)})` : undefined }}>
+        <div className="story-beautify-preview" {...storyChromeAttributes(prefs)} style={{ ...storyAppearanceStyle(prefs), backgroundImage: prefs.wallpaper ? `url(${JSON.stringify(prefs.wallpaper)})` : undefined }}>
           {prefs.wallpaper && panelVisible && <div className="story-beautify-preview-shade" />}
+          <div className="story-header story-beautify-preview-header" aria-hidden="true"><div className="story-header-content">
+            <div className="story-header-left"><button type="button" tabIndex={-1} data-story-action="back" className="story-top-btn">‹</button><div className="story-header-person"><Avatar size="sm" name={characterName} src={characterAvatar} /><span>{characterName}</span></div></div>
+            <div className="story-header-center" /><div className="story-header-right"><button type="button" tabIndex={-1} data-story-action="new" className="story-top-btn">＋</button><button type="button" tabIndex={-1} data-story-action="beautify" className="story-top-btn">✎</button><button type="button" tabIndex={-1} data-story-action="settings" className="story-top-btn">☰</button></div>
+          </div></div>
           <div className={`story-stage-inner${panelVisible ? "" : " story-free-layout"}`}>
-            {(["user", "assistant"] as const).map(speaker => <article key={speaker} className="story-row" data-role={speaker}>
+            {(["user", "assistant"] as const).map(speaker => <article key={speaker} className="story-row" data-role={speaker} {...storyMessageAppearanceAttributes(prefs, speaker)}>
               <div className="story-msg-head"><div className="story-avatar-wrap"><Avatar size="md" name={speaker === "user" ? userName : characterName} src={speaker === "user" ? userAvatar : characterAvatar} /></div>
-                <div className="story-msg-meta"><span className="story-msg-name">{speaker === "user" ? userName : characterName}</span></div></div>
+                <div className="story-msg-meta"><span className="story-msg-name">{speaker === "user" ? userName : characterName}</span><span className="story-msg-time">12:30</span></div></div>
               <div className="story-bubble-wrap"><div className="story-bubble"><StoryHtmlRenderer colorDialogue={!panelVisible} messageId={`beauty-preview-${speaker}`} content={speaker === "user" ? "我抬起头望向你。\n\n「今天一起走走吧。」\n\n**这句话很重要。**" : "我停下脚步，笑着回应。\n\n「好，我陪你。」\n\n**我记住了你的邀请。**"} /></div></div>
             </article>)}
           </div>
+          <div className="story-composer story-beautify-preview-composer" aria-hidden="true"><button type="button" tabIndex={-1} data-story-action="continue" className="story-continue-btn">续写</button><textarea tabIndex={-1} readOnly rows={1} value="输入消息…" /><button type="button" tabIndex={-1} data-story-action="send" data-state="idle" className="story-send-btn">↑</button></div>
         </div>
-        <p>基础美化在此预览，保存并应用后生效；壁纸、阅读面板、主题和 CSS 实时保存应用。HTML 卡片保留自身样式。</p>
+        <p>基础美化在此预览，保存并应用后生效；壁纸、阅读面板、主题、两栏设置和 CSS 实时保存应用。HTML 卡片保留自身样式。</p>
       </section>
 
       <details className="story-beautify-card story-beautify-css"><summary>高级自定义 CSS</summary>
         <textarea aria-label="剧情自定义 CSS" className="story-css-box" value={css} onChange={event => applyCSS(event.target.value)} placeholder="在这里输入剧情页面 CSS" />
         <div className="story-beautify-actions"><CSSSchemeBar target="story" currentCSS={css} onLoad={applyCSS} />
-          <button type="button" onClick={() => applyCSS(STORY_CSS_EXAMPLE)}>加载示例</button><button type="button" onClick={() => applyCSS("")}>清除 CSS</button></div>
+          <button type="button" onClick={() => applyCSS(STORY_CSS_EXAMPLE)}>加载白色基础模板</button><button type="button" onClick={() => applyCSS("")}>清除 CSS</button></div>
       </details>
-      <p className="story-beautify-notice" role="status">{wallpaperLoading ? "正在读取壁纸…" : notice || "壁纸、阅读面板、主题和 CSS 修改后立即保存，关闭美化不会撤销。"}</p>
+      <p className="story-beautify-notice" role="status">{wallpaperLoading ? "正在读取壁纸…" : notice || "壁纸、阅读面板、主题、两栏设置和 CSS 修改后立即保存，关闭美化不会撤销。"}</p>
     </main>
     {!panelVisible && <footer><button type="button" onClick={() => { setPrefs(previous => ({ ...previous, appearance: undefined })); setNotice("基础美化已重置，保存并应用后生效。"); }}>重置基础美化</button>
       <button type="button" className="story-beautify-save" onClick={() => { onApplyAppearance(prefs.appearance); setNotice("基础美化已保存并应用，可继续调整。"); }}>保存并应用</button></footer>}

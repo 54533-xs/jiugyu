@@ -49,7 +49,7 @@ function MiniPhoneIcon({ size = 18 }: { size?: number }) {
   );
 }
 import { StoryAppearanceEditor } from "./story-appearance-editor";
-import { isStoryReadingPanelVisible, storyAppearanceStyle } from "@/lib/story-appearance";
+import { isStoryReadingPanelVisible, storyAppearanceStyle, storyChromeAttributes, storyMessageAppearanceAttributes, type StoryAppearancePrefs } from "@/lib/story-appearance";
 import { Avatar } from "@/components/ui/primitives";
 import { StoryHtmlRenderer, type StoryVoiceSegment } from "@/components/ui/story-html-renderer";
 import { StorySettingsPage, STORY_DEFAULT_STATUS_RENDER, STORY_DEFAULT_THEATER_RENDER } from "@/components/story/story-settings-page";
@@ -262,7 +262,9 @@ const STORY_LOAD_MORE_COUNT = 10;
 function StoryGeneratingIndicator({
   characterName,
   avatar,
+  appearancePrefs,
 }: {
+  appearancePrefs: StoryAppearancePrefs;
   characterName: string;
   avatar?: string;
 }) {
@@ -277,7 +279,7 @@ function StoryGeneratingIndicator({
   }, []);
 
   return (
-    <article className="story-row" data-role="assistant">
+    <article className="story-row" data-role="assistant" {...storyMessageAppearanceAttributes(appearancePrefs, "assistant")}>
       <div className="story-msg-head">
         <div className="story-avatar-wrap">
           <Avatar src={avatar || undefined} name={characterName} size="md" />
@@ -421,6 +423,7 @@ const StoryComposer = memo(function StoryComposer({
       <button
         type="button"
         className="story-sequence-play"
+        data-story-action="voice"
         data-enabled={voiceEnabled ? "true" : undefined}
         data-playing={voicePlaying ? "true" : undefined}
         onClick={onPlayNext}
@@ -436,6 +439,7 @@ const StoryComposer = memo(function StoryComposer({
       <button
         type="button"
         className="story-continue-btn"
+        data-story-action="continue"
         onClick={onContinue}
         disabled={isGenerating}
       >
@@ -445,6 +449,7 @@ const StoryComposer = memo(function StoryComposer({
         <button
           type="button"
           className="story-quick-input-btn"
+          data-story-action="quick-input"
           data-open={quickPanelOpen ? "true" : undefined}
           onClick={() => setQuickPanelOpen((open) => !open)}
           aria-expanded={quickPanelOpen}
@@ -458,6 +463,7 @@ const StoryComposer = memo(function StoryComposer({
           <button
             type="button"
             className="story-auto-read-btn"
+            data-story-action="auto-read"
             data-reading={autoReading ? "true" : undefined}
             onClick={onToggleAutoReading}
             disabled={!autoReading && !canAutoRead}
@@ -468,6 +474,7 @@ const StoryComposer = memo(function StoryComposer({
           <button
             type="button"
             className="story-current-read-btn"
+            data-story-action="current-read"
             data-expanded={currentReadExpanded ? "true" : undefined}
             onClick={onCurrentReadControl}
             disabled={!canAutoRead}
@@ -501,6 +508,7 @@ const StoryComposer = memo(function StoryComposer({
       />
       <button
         className={`story-send-btn${isGenerating ? " is-generating" : ""}`}
+        data-story-action="send" data-state={isGenerating ? "generating" : "idle"}
         onClick={submit}
         aria-label={isGenerating ? "停止剧情生成" : "发送剧情输入"}
         title={isGenerating ? "停止剧情生成" : "发送剧情输入"}
@@ -2233,7 +2241,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
             <div className="story-header-safe-area" />
             <div className="story-header-content">
               <div className="story-header-left">
-                <button className="story-top-btn" onClick={onClose} aria-label="关闭剧情模式">
+                <button className="story-top-btn" data-story-action="back" onClick={onClose} aria-label="关闭剧情模式">
                   <SolidBackIcon size={16} />
                 </button>
               </div>
@@ -2341,6 +2349,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
       className={`story-app-shell story-session-${currentSession.id}`}
       data-story-theme={uiPrefs.theme || "paper"}
       data-story-reading-panel={readingPanelVisible ? "shown" : "hidden"}
+      {...storyChromeAttributes(uiPrefs)}
       style={storyShellStyle}
       onTouchStart={(event) => handleTouchStart(event.touches[0]?.clientX || 0)}
       onTouchMove={(event) => handleTouchMove(event.touches[0]?.clientX || 0)}
@@ -2366,7 +2375,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
           <div className="story-header-safe-area" />
           <div className="story-header-content">
             <div className="story-header-left">
-              <button className="story-top-btn" onClick={onClose} aria-label="关闭剧情模式">
+              <button className="story-top-btn" data-story-action="back" onClick={onClose} aria-label="关闭剧情模式">
                 <SolidBackIcon size={16} />
               </button>
               <div className="story-header-person">
@@ -2376,13 +2385,13 @@ export function StoryApp({ onClose }: StoryAppProps) {
             </div>
             <div className="story-header-center" />
             <div className="story-header-right" style={{ gap: 8 }}>
-              <button className="story-top-btn" onClick={() => setQuickStoryOpen(true)} aria-label="快捷进入新剧情">
+              <button className="story-top-btn" data-story-action="new" onClick={() => setQuickStoryOpen(true)} aria-label="快捷进入新剧情">
                 <PlusIcon width={16} height={16} />
               </button>
-              <button className="story-top-btn" onClick={() => setCssModalOpen(true)} aria-label="页面样式">
+              <button className="story-top-btn" data-story-action="beautify" onClick={() => setCssModalOpen(true)} aria-label="页面样式">
                 <PaintBrushIcon width={16} height={16} />
               </button>
-              <button className="story-top-btn" onClick={() => setSettingsOpen(true)} aria-label="打开剧情设置">
+              <button className="story-top-btn" data-story-action="settings" onClick={() => setSettingsOpen(true)} aria-label="打开剧情设置">
                 <SolidMenuIcon size={16} />
               </button>
             </div>
@@ -2468,6 +2477,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
                       key={message.id}
                       className="story-row"
                       data-role={message.role}
+                      {...storyMessageAppearanceAttributes(uiPrefs, message.role)}
                       data-selected={storyMessageSelected ? "1" : "0"}
                       data-story-message-id={message.id}
                       onClick={storyMultiSelect ? (e) => { e.preventDefault(); e.stopPropagation(); toggleStoryMultiSelect(message.id); } : undefined}
@@ -2572,7 +2582,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
               </>
             )}
             {isGenerating && activeStreamingText ? (
-              <article className="story-row story-streaming-row" data-role="assistant" aria-live="polite">
+              <article className="story-row story-streaming-row" data-role="assistant" {...storyMessageAppearanceAttributes(uiPrefs, "assistant")} aria-live="polite">
                 <div className="story-msg-head">
                   <div className="story-avatar-wrap"><Avatar src={storyAvatar || undefined} name={storyDisplayName} size="md" /></div>
                   <div className="story-msg-meta"><span className="story-msg-name">{storyDisplayName}</span><span className="story-msg-time">正在输出</span></div>
@@ -2582,6 +2592,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
             ) : null}
             {isGenerating && !activeStreamingText ? (
               <StoryGeneratingIndicator
+                appearancePrefs={uiPrefs}
                 characterName={storyDisplayName}
                 avatar={storyAvatar || undefined}
               />

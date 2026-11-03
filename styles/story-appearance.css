@@ -92,3 +92,49 @@
 .story-beautify-page > footer { flex-shrink: 0; display: flex; gap: 10px; padding: 12px 16px max(12px,env(safe-area-inset-bottom,0px)); border-top: 1px solid var(--c-story-panel-border,rgba(100,116,139,.12)); background: var(--c-story-bg-top,#fff); }
 .story-beautify-page > footer button { flex: 1; min-height: 42px; padding: 8px; border: 0; border-radius: 10px; font-size: calc(12px * var(--app-text-scale,1)); background: var(--c-story-panel-active,rgba(148,163,184,.12)); color: inherit; }
 .story-beautify-page > footer .story-beautify-save { background: var(--c-story-heading,#334155); color: var(--c-story-bg-top,#fff); }
+
+/* Both bars share the same controls; opacity never dims the story itself. */
+:is(.story-app-shell,.story-beautify-preview)[data-story-bars-opacity] .story-header { background: var(--story-header-background,var(--c-story-bg-top,#fff)); }
+:is(.story-app-shell,.story-beautify-preview)[data-story-bars-opacity] .story-composer,
+:is(.story-app-shell,.story-beautify-preview)[data-story-bars-opacity] .story-composer:focus-within,
+:is(.story-app-shell,.story-beautify-preview)[data-story-bars-opacity] .story-multi-select-bar { background: var(--story-footer-background,var(--c-story-input-bar,var(--c-story-meta-bg,#fff))); }
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-color] .story-header,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-color] .story-header-person,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-color] .story-header-center,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-color] .story-header button,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-color] .story-composer button,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-color] .story-composer button small,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-color] .story-composer textarea,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-color] .story-multi-select-bar { color: var(--story-controls-color); }
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-color] .story-multi-select-bar button { color: var(--story-controls-color); }
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-header button,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-composer button,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-multi-select-bar button { opacity: var(--story-controls-opacity); }
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-header button:disabled,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-composer button:disabled,
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-multi-select-bar button:disabled { opacity: calc(var(--story-controls-opacity) * .48); }
+:is(.story-app-shell,.story-beautify-preview)[data-story-header-avatar="hidden"] .story-header-person .ui-avatar { display: none; }
+
+/* All message states use these hooks: saved messages, streaming, and waiting. */
+.story-free-layout > .story-row[data-story-avatar-layout="center"] > .story-msg-head {
+  flex-direction: column; align-items: center; width: 100%; max-width: var(--story-current-maxWidth); align-self: flex-start; gap: 6px;
+}
+.story-free-layout > .story-row[data-role="user"][data-story-avatar-layout="center"] > .story-msg-head { align-self: flex-end; }
+.story-free-layout > .story-row[data-story-avatar-layout="center"] .story-msg-meta { align-items: center; text-align: center; }
+.story-free-layout > .story-row[data-role="assistant"][data-story-avatar-layout="reverse"] > .story-msg-head { flex-direction: row-reverse; }
+.story-free-layout > .story-row[data-role="assistant"][data-story-avatar-layout="reverse"] .story-msg-meta { align-items: flex-end; }
+.story-free-layout > .story-row[data-role="assistant"][data-story-avatar-layout="reverse"] .story-bubble-wrap { align-items: flex-end; }
+.story-free-layout > .story-row[data-role="user"][data-story-avatar-layout="reverse"] > .story-msg-head { flex-direction: row; }
+.story-free-layout > .story-row[data-role="user"][data-story-avatar-layout="reverse"] .story-msg-meta { align-items: flex-start; }
+.story-free-layout > .story-row[data-role="user"][data-story-avatar-layout="reverse"] .story-bubble-wrap { align-items: flex-start; }
+.story-beautify-bars summary { cursor: pointer; font-size: calc(13px * var(--app-text-scale,1)); }
+.story-beautify-check { display: flex; align-items: center; gap: 8px; margin: 14px 0; font-size: calc(12px * var(--app-text-scale,1)); }
+.story-beautify-preview > .story-beautify-preview-header { position: relative; inset: auto; margin-bottom: 14px; border-radius: 8px; }
+.story-beautify-preview-header .story-header-content { padding: 4px; min-height: 40px; }
+.story-beautify-preview-header .story-header-person span { max-width: 70px; }
+.story-beautify-preview-header .story-top-btn { width: 27px; height: 27px; }
+.story-beautify-preview > .story-beautify-preview-composer { position: relative; inset: auto; margin-top: 14px; padding: 8px; border-radius: 8px; min-height: 40px; }
+.story-beautify-preview-composer .story-continue-btn { position: static; flex-shrink: 0; }
+.story-beautify-preview-composer textarea { height: 32px; resize: none; }
+
+.story-beautify-preview-header,.story-beautify-preview-composer { pointer-events: none; }

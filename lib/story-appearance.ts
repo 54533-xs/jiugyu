@@ -14,10 +14,18 @@ export type StoryBubbleAppearance = {
   lineHeight?: number;
   paragraphGap?: number;
   avatarSize?: number;
+  avatarLayout?: "default" | "center" | "reverse";
   avatarShape?: "square" | "rounded" | "circle";
 };
 export type StoryAppearance = { user?: StoryBubbleAppearance; assistant?: StoryBubbleAppearance; messageGap?: number };
-export type StoryAppearancePrefs = { theme?: string; wallpaper?: string; readingPanel?: StoryReadingPanelMode; appearance?: StoryAppearance };
+export type StoryChromeAppearance = {
+  /** 两栏共用的背景与按钮不透明度，0–100；未配置时沿用原主题。 */
+  barOpacity?: number;
+  buttonOpacity?: number;
+  controlsColor?: string;
+  hideHeaderAvatar?: boolean;
+};
+export type StoryAppearancePrefs = { chrome?: StoryChromeAppearance; theme?: string; wallpaper?: string; readingPanel?: StoryReadingPanelMode; appearance?: StoryAppearance };
 
 export const STORY_THEMES = [
   { id: "paper", color: "#94a3b8", name: "纸白" },
@@ -39,6 +47,7 @@ export function normalizeStoryBubbleAppearance(input?: StoryBubbleAppearance) {
     padding: numberInRange(value.padding, 12, 0, 32), radius: numberInRange(value.radius, 12, 0, 40), maxWidth: numberInRange(value.maxWidth, 100, 55, 100),
     fontSize: numberInRange(value.fontSize, 14, 10, 28), textColor: color(value.textColor), dialogueColor: color(value.dialogueColor), boldColor: color(value.boldColor),
     lineHeight: numberInRange(value.lineHeight, 1.78, 1.2, 2.6), paragraphGap: numberInRange(value.paragraphGap, 12, 0, 32),
+    avatarLayout: value.avatarLayout === "center" || value.avatarLayout === "reverse" ? value.avatarLayout : "default",
     avatarSize: numberInRange(value.avatarSize, 38, 20, 72),
     avatarShape: value.avatarShape === "circle" || value.avatarShape === "rounded" ? value.avatarShape : "square",
   };
@@ -50,8 +59,40 @@ export function isStoryReadingPanelVisible(prefs: StoryAppearancePrefs): boolean
   return prefs.readingPanel === "show" || (prefs.readingPanel !== "hide" && !prefs.wallpaper?.trim());
 }
 
+export function normalizeStoryChromeAppearance(input?: StoryChromeAppearance) {
+  const value = input && typeof input === "object" ? input : {};
+  return {
+    barOpacity: numberInRange(value.barOpacity, 100, 0, 100),
+    buttonOpacity: numberInRange(value.buttonOpacity, 100, 0, 100),
+    controlsColor: color(value.controlsColor),
+    hideHeaderAvatar: value.hideHeaderAvatar === true,
+  };
+}
+
+export function storyChromeAttributes(prefs: StoryAppearancePrefs) {
+  const chrome = normalizeStoryChromeAppearance(prefs.chrome);
+  return {
+    "data-story-bars-opacity": typeof prefs.chrome?.barOpacity === "number" ? "custom" : undefined,
+    "data-story-controls-color": chrome.controlsColor ? "custom" : undefined,
+    "data-story-controls-opacity": typeof prefs.chrome?.buttonOpacity === "number" ? "custom" : undefined,
+    "data-story-header-avatar": chrome.hideHeaderAvatar ? "hidden" : undefined,
+  };
+}
+
+export function storyMessageAppearanceAttributes(prefs: StoryAppearancePrefs, role: string) {
+  return { "data-story-avatar-layout": role === "user" || role === "assistant"
+    ? normalizeStoryBubbleAppearance(prefs.appearance?.[role]).avatarLayout : undefined };
+}
+
 export function storyAppearanceStyle(prefs: StoryAppearancePrefs): CSSProperties {
   const style: Record<string, string | number> = { "--story-message-gap": `${normalizeStoryMessageGap(prefs.appearance?.messageGap)}px` };
+  const chrome = normalizeStoryChromeAppearance(prefs.chrome);
+  if (typeof prefs.chrome?.barOpacity === "number") {
+    style["--story-header-background"] = `color-mix(in srgb, var(--c-story-bg-top, #ffffff) ${chrome.barOpacity}%, transparent)`;
+    style["--story-footer-background"] = `color-mix(in srgb, var(--c-story-input-bar, #ffffff) ${chrome.barOpacity}%, transparent)`;
+  }
+  if (typeof prefs.chrome?.buttonOpacity === "number") style["--story-controls-opacity"] = chrome.buttonOpacity / 100;
+  if (chrome.controlsColor) style["--story-controls-color"] = chrome.controlsColor;
   for (const role of ["user", "assistant"] as const) {
     const value = normalizeStoryBubbleAppearance(prefs.appearance?.[role]);
     const prefix = `--story-${role}-`;
