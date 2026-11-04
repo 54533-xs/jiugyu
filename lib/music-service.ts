@@ -227,16 +227,31 @@ export type NeteasePlayInfo = {
 
 /** Get playable URL for a Netease song, with a concrete failure reason. */
 export async function getNeteasePlayInfo(songId: number): Promise<NeteasePlayInfo> {
+    const fallbackOuterUrl = `https://music.163.com/song/media/outer/url?id=${songId}.mp3`;
     const base = neteaseBase();
-    if (!base) return { url: null, trial: false, reason: "音乐 API 未配置" };
+    if (!base) {
+        return { url: fallbackOuterUrl, trial: false, reason: "" };
+    }
     try {
-        const resp = await fetch(withNeteaseParams(`${base}/song/url?id=${songId}`));
-        const data = await resp.json();
-        const d = data?.data?.[0];
+        let d: any = null;
+        // 1. 优先尝试现代 EAPI 接口 /song/url/v1（标准音质，成功率更高）
+        try {
+            const v1Resp = await fetch(withNeteaseParams(`${base}/song/url/v1?id=${songId}&level=standard`));
+            const v1Data = await v1Resp.json();
+            d = v1Data?.data?.[0];
+        } catch { /* 降级到旧版接口 */ }
+
+        // 2. 降级到旧版 /song/url
+        if (!d?.url) {
+            try {
+                const resp = await fetch(withNeteaseParams(`${base}/song/url?id=${songId}`));
+                const data = await resp.json();
+                d = data?.data?.[0];
+            } catch { /* 接口异常 */ }
+        }
+
         const url = d?.url;
         if (url && typeof url === "string") {
-            // Netease returns http:// CDN links; on an HTTPS page the browser blocks
-            // them as mixed content, so the audio never loads. The CDN serves https.
             return { url: url.replace(/^http:\/\//, "https://"), trial: !!d?.freeTrialInfo, reason: "" };
         }
         const fee = d?.fee;
@@ -247,16 +262,12 @@ export async function getNeteasePlayInfo(songId: number): Promise<NeteasePlayInf
         if (fee === 4) {
             return { url: null, trial: false, reason: "付费专辑歌曲，需购买后才能播放" };
         }
-        // Ask check/music for a human-readable reason (e.g. 无版权)
-        try {
-            const chk = await fetch(withNeteaseParams(`${base}/check/music?id=${songId}&timestamp=${Date.now()}`)).then(r => r.json());
-            const msg = chk?.message ? String(chk.message).replace(/^亲爱的[,，]?/, "").trim() : "";
-            if (chk?.success === false && msg) return { url: null, trial: false, reason: msg };
-        } catch { /* check endpoint unavailable — fall through */ }
-        return { url: null, trial: false, reason: "该歌曲暂时无法播放" };
+
+        // 3. 免费歌曲如果因 API 实例风控返回 null，直接回退到网易云官方外链播放源
+        return { url: fallbackOuterUrl, trial: false, reason: "" };
     } catch (e) {
-        console.warn("[MusicService] Get play URL failed:", e);
-        return { url: null, trial: false, reason: "网络异常，加载失败" };
+        console.warn("[MusicService] Get play URL failed, using fallback outer url:", e);
+        return { url: fallbackOuterUrl, trial: false, reason: "" };
     }
 }
 
