@@ -4,7 +4,7 @@ import { listeningEntryTiming } from "@/lib/listening-motion";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Plus, Play, Pause, Trash2, Pencil, ChevronDown, Check, Music2 } from "lucide-react";
 import { useMusicControlsOptional } from "@/lib/music-context";
-import { loadChatSessions, pushChatMessage, CHAT_REQUEST_REPLY_EVENT } from "@/lib/chat-storage";
+import { loadChatSessions, pushChatMessage } from "@/lib/chat-storage";
 import { loadCharacters } from "@/lib/character-storage";
 import { activateListeningSong } from "@/lib/listening-playback";
 import { resolveListeningSongCover } from "@/lib/listening-song-cover";
@@ -76,7 +76,12 @@ export default function ListeningLibrary({ sessionId, heroActions, heroSessionId
     const chars = loadCharacters();
     const sessions = loadChatSessions().filter(s => !(s as any).isSpectator);
     const session = sessions.find(s => s.id === scope);
+    const getCharAvatar = (contactId?: string) => {
+        const c = chars.find(item => item.id === contactId);
+        return c?.chatAvatar || c?.avatar || (c as any)?.avatarUrl;
+    };
     const sessionName = (id: string) => { const s = sessions.find(s => s.id === id); return s?.isGroup ? (s as any).groupName || "群聊" : (s as any).alias || chars.find(c => c.id === s?.contactId)?.name || "选择聊天"; };
+    const sessionAvatar = (s: typeof sessions[0]) => s.isGroup ? ((s as any).groupAvatar || (s as any).avatar) : getCharAvatar(s.contactId);
     const actorName = (id: string) => id === "self" ? "你" : chars.find(c => c.id === id)?.name || "成员";
     const playlists = loadListeningLibrary().playlists.filter(p => p.sessionId === scope && session);
     const ranking = listeningRanking().filter(r => chars.some(c => c.id === r.characterId));
@@ -88,12 +93,31 @@ export default function ListeningLibrary({ sessionId, heroActions, heroSessionId
     const entry = useMemo(() => listeningEntryTiming(joined, heroRoom?.lastGlowAt), [joined, heroRoom?.id, heroRoom?.lastGlowAt, heroRoom?.glowEpoch]);
     const invite = (id: string) => {
         try {
+            const track = player?.currentTrack;
+            if (!track) {
+                setNotice("请先选择一首歌播放，再发起一起听");
+                return;
+            }
             const target = sessions.find(s => s.id === id);
             if (!target) return;
             const invitation = target.isGroup ? inviteGroupListeningRoom(id) : inviteListeningRoom(id, target.contactId);
-            const track = player?.currentTrack;
-            pushChatMessage({ sessionId: id, role: "user", content: "邀请你一起听歌。", mediaType: "listening_invite", mediaData: { listeningInvite: { roomId: invitation.id, title: track?.title, artist: track?.artist, coverUrl: track?.coverUrl } } });
-            setInvitePicker(false); setNotice(""); window.dispatchEvent(new CustomEvent(CHAT_REQUEST_REPLY_EVENT, { detail: { sessionId: id } }));
+            pushChatMessage({
+                sessionId: id,
+                role: "user",
+                content: "邀请你一起听歌。",
+                mediaType: "listening_invite",
+                mediaData: {
+                    listeningInvite: {
+                        roomId: invitation.id,
+                        initiator: "user",
+                        title: track.title,
+                        artist: track.artist,
+                        coverUrl: track.coverUrl
+                    }
+                }
+            });
+            setInvitePicker(false);
+            setNotice("邀请已发送，可进入聊天提醒TA听");
         } catch (e) { setNotice(e instanceof Error ? e.message : "邀请失败"); }
     };
     const act = (fn: () => void) => { try { fn(); setNotice(""); } catch (e) { setNotice(e instanceof Error ? e.message : "操作失败"); } };
@@ -122,7 +146,7 @@ export default function ListeningLibrary({ sessionId, heroActions, heroSessionId
             <div className={styles.photoReveal} data-expanded={hasListeningState}><div className={styles.photoStage}>
                 {hasListeningState && <div className={styles.pair} data-joined={joined}><span className={styles.heroAvatar}><span className={styles.heroPhoto}><ListeningAvatar src={(user as any)?.avatarUrl} name={user?.name || "你"} /></span></span><span className={styles.heroAvatar}><span className={styles.heroPhoto}><ListeningAvatar src={partnerAvatar} name={presence.name} /></span></span></div>}
             </div></div>
-            {heroActions ? <div className={styles.heroActions}>{heroActions}</div> : <><button className={styles.inviteButton} disabled={!!presence.room} onClick={() => setInvitePicker(!invitePicker)} aria-expanded={invitePicker}>{presence.room ? (joined ? "一起听进行中" : "等待加入") : "邀请一起听"}</button>{invitePicker && <div className={styles.invitePicker} role="group" aria-label="邀请一起听的聊天" onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setInvitePicker(false); } }}><div className={styles.inviteHeading}>邀请谁来听<button aria-label="收起邀请列表" onClick={() => setInvitePicker(false)}>×</button></div>{sessions.map(s => <button className={styles.inviteRow} key={s.id} onClick={() => invite(s.id)}><span className={styles.avatar}><ListeningAvatar src={s.isGroup ? (s as any).groupAvatar : chars.find(c => c.id === s.contactId)?.avatarUrl} name={sessionName(s.id)} /></span><span className={styles.inviteLabel}><strong>{sessionName(s.id)}</strong><small>{s.isGroup ? "群聊 · 一起分享此刻" : "一起听同一首歌"}</small></span><Plus size={16} /></button>)}{!sessions.length && <p>先建立一个聊天室</p>}</div>}</>}
+            {heroActions ? <div className={styles.heroActions}>{heroActions}</div> : <><button className={styles.inviteButton} disabled={!!presence.room} onClick={() => setInvitePicker(!invitePicker)} aria-expanded={invitePicker}>{presence.room ? (joined ? "一起听进行中" : "等待加入") : "邀请一起听"}</button>{invitePicker && <div className={styles.invitePicker} role="group" aria-label="邀请一起听的聊天" onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setInvitePicker(false); } }}><div className={styles.inviteHeading}>邀请谁来听<button aria-label="收起邀请列表" onClick={() => setInvitePicker(false)}>×</button></div>{sessions.map(s => <button className={styles.inviteRow} key={s.id} onClick={() => invite(s.id)}><span className={styles.avatar}><ListeningAvatar src={sessionAvatar(s)} name={sessionName(s.id)} /></span><span className={styles.inviteLabel}><strong>{sessionName(s.id)}</strong><small>{s.isGroup ? "群聊 · 一起分享此刻" : "一起听同一首歌"}</small></span><Plus size={16} /></button>)}{!sessions.length && <p>先建立一个聊天室</p>}</div>}</>}
         </div>}
         {!sessionId && <div className={styles.sectionHead}><h3>陪伴时光</h3></div>}
         {tab === "rank" ? <>
@@ -130,7 +154,7 @@ export default function ListeningLibrary({ sessionId, heroActions, heroSessionId
             {heroSessionId && sessions.some(s => s.id === heroSessionId && (s.isGroup || !ranking.some(r => r.characterId === s.contactId))) && <details className={styles.currentLibrary}><summary>{sessionName(heroSessionId)} · 共同歌单</summary><ListeningLibrary sessionId={heroSessionId} /></details>}
             <ol className={styles.ranking}>{ranking.map(r => {
                 const c = chars.find(c => c.id === r.characterId)!; const chats = sessions.filter(s => !s.isGroup && s.contactId === c.id); return <li key={c.id} className={styles.person}>
-                    <button className={styles.rankButton} aria-expanded={expanded === c.id} onClick={() => setExpanded(expanded === c.id ? null : c.id)}><span className={styles.rank}>{r.rank}</span><span className={styles.avatar}><ListeningAvatar src={c.avatarUrl} name={c.name} /></span><strong>{c.name}<small>一起听过的时光</small></strong><span className={styles.time}>{Math.floor(r.milliseconds / 60000)}<small> 分钟</small></span></button>
+                    <button className={styles.rankButton} aria-expanded={expanded === c.id} onClick={() => setExpanded(expanded === c.id ? null : c.id)}><span className={styles.rank}>{r.rank}</span><span className={styles.avatar}><ListeningAvatar src={c.chatAvatar || c.avatar || (c as any).avatarUrl} name={c.name} /></span><strong>{c.name}<small>一起听过的时光</small></strong><span className={styles.time}>{Math.floor(r.milliseconds / 60000)}<small> 分钟</small></span></button>
                     {expanded === c.id && <div className={styles.expanded}>{chats.length ? chats.map(s => <ListeningLibrary key={s.id} sessionId={s.id} />) : <p className={styles.hint}>暂无可访问的共同歌单</p>}</div>}
                 </li>;
             })}</ol></> : <>

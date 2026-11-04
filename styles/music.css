@@ -5314,3 +5314,51 @@
 @media(prefers-reduced-motion:reduce){.listening-music-motes{display:none}.listening-global-glow::after{animation-name:listening-love-blush;filter:none}.listening-love-line path{animation-name:listening-love-still;stroke-dashoffset:0}}
 @keyframes listening-love-still{0%,100%{opacity:0}20%,75%{opacity:1}}
 
+/* ── Listening Invite Card: Trigger Reply Button (User side) ── */
+.listening-invite-trigger-reply-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
+  width: 100%;
+}
+.listening-invite-trigger-reply-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 16px;
+  font-size: calc(12.5px * var(--app-text-scale, 1));
+  font-weight: 550;
+  letter-spacing: -0.2px;
+  color: var(--c-music-text, #333);
+  background: color-mix(in srgb, var(--c-music-panel, #ffffff) 85%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-music-accent, #e58eae) 35%, transparent);
+  border-radius: 20px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.listening-invite-trigger-reply-btn:hover {
+  background: color-mix(in srgb, var(--c-music-panel, #ffffff) 96%, transparent);
+  border-color: var(--c-music-accent, #e58eae);
+  box-shadow: 0 4px 16px rgba(229, 142, 174, 0.2), inset 0 1px 0 #fff;
+  transform: translateY(-1px);
+}
+.listening-invite-trigger-reply-btn:active {
+  transform: scale(0.96);
+  opacity: 0.8;
+}
+@media (prefers-color-scheme: dark) {
+  .listening-invite-trigger-reply-btn {
+    color: var(--c-music-text, #f0f0f4);
+    background: color-mix(in srgb, var(--c-music-panel, #252229) 82%, transparent);
+    border-color: color-mix(in srgb, var(--c-music-accent, #e58eae) 30%, transparent);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+}
+

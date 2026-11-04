@@ -13,7 +13,6 @@ import { GeneratedImageErrorDialog } from "./generated-image-error-dialog";
 import { PhotoInputModal, TextPhotoModal, VoiceRecordModal, RedPacketModal, LocationInputModal, SystemInstructionModal } from "./rich-input-modals";
 import ChatMusicPanel, { ListeningStatus } from "@/components/music/chat-music-panel";
 import { getListeningRoom, inviteListeningRoom, inviteGroupListeningRoom, leaveListeningRoom, applyListeningRoomReply } from "@/lib/listen-together";
-import { waitForListeningInviteDraft } from "@/lib/listening-invite-reply";
 import { EmojiPanel, StickerPanel } from "./emoji-panel";
 import { StickerSearchSuggest } from "./sticker-search-suggest";
 import { StateValuesPanel } from "./state-values-panel";
@@ -1621,6 +1620,17 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
         window.addEventListener("chat-messages-updated", onExternalMessageUpdate);
         return () => window.removeEventListener("chat-messages-updated", onExternalMessageUpdate);
     }, [session.id, syncMessagesFromStorage]);
+
+    useEffect(() => {
+        const onTriggerReply = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail?.sessionId === session.id && !isGeneratingRef.current) {
+                void triggerAIResponse();
+            }
+        };
+        window.addEventListener("chat-room-trigger-reply", onTriggerReply);
+        return () => window.removeEventListener("chat-room-trigger-reply", onTriggerReply);
+    }, [session.id]);
 
     // --- Background generation: reload messages when a bg API call completes ---
     useEffect(() => {
@@ -7303,10 +7313,14 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                             showChatToast("对方正在回复，请稍后邀请");
                             return;
                         }
+                        const snapshot = getMusicControlBridge()?.getState();
+                        const track = snapshot?.currentTrack;
+                        if (!track?.title) {
+                            showChatToast("请先选择一首歌播放，再发起一起听");
+                            return;
+                        }
                         try {
                             const invitation = session.isGroup ? inviteGroupListeningRoom(session.id) : inviteListeningRoom(session.id, session.contactId);
-                            const snapshot = getMusicControlBridge()?.getState();
-                            const track = snapshot?.currentTrack;
                             pushChatMessage({
                                 sessionId: session.id,
                                 role: "user",
@@ -7316,21 +7330,15 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                                     listeningInvite: {
                                         roomId: invitation.id,
                                         initiator: "user",
-                                        title: track?.title,
-                                        artist: track?.artist,
-                                        coverUrl: track?.coverUrl,
+                                        title: track.title,
+                                        artist: track.artist,
+                                        coverUrl: track.coverUrl,
                                     }
                                 }
                             });
                             setMessages(loadChatMessages(session.id));
-                            waitForListeningInviteDraft(wrapperRef.current, () => {
-                                if (getListeningRoom()?.id !== invitation.id || getListeningRoom()?.status !== "invited" || isGeneratingRef.current) return;
-                                const history = loadChatMessages(session.id);
-                                const invitationIndex = history.findIndex(m => m.role === "user" && m.mediaData?.listeningInvite?.roomId === invitation.id);
-                                if (invitationIndex < 0 || history.slice(invitationIndex + 1).some(m => m.role === "assistant")) return;
-                                if (history.filter(m => m.role === "user").at(-1)?.mediaData?.listeningInvite?.roomId !== invitation.id) return;
-                                window.dispatchEvent(new CustomEvent(CHAT_REQUEST_REPLY_EVENT, { detail: { sessionId: session.id } }));
-                            });
+                            setShowMusicPanel(false);
+                            showChatToast("邀请已发送，可点击卡片提醒TA听");
                         } catch (error) {
                             leaveListeningRoom(session.id);
                             throw error;

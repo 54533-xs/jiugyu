@@ -69,5 +69,19 @@ export function ListeningInviteCard({ msg, readOnly = false }: { msg: ChatMessag
         </div>
         {actionable && busy && <div className="listening-invite-gesture-hint" role="status">正在连接…</div>}
         {error && <div className="listening-invite-gesture-hint" role="status">{error}</div>}
+        {invite?.initiator === "user" && status === "invited" && (
+            <div className="listening-invite-trigger-reply-wrap">
+                <button
+                    type="button"
+                    className="listening-invite-trigger-reply-btn"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        window.dispatchEvent(new CustomEvent("chat-room-trigger-reply", { detail: { sessionId: msg.sessionId } }));
+                    }}
+                >
+                    ✨ 提醒TA听
+                </button>
+            </div>
+        )}
     </div>;
 }
