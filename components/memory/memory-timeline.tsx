@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { NativeTimelineEntry } from "@/lib/short-term-assembler";
+import { getNativeTimelineEntryKey } from "@/lib/native-timeline-key";
 import { buildTwoLevelMomentThreads } from "@/lib/moments-comment-threading";
 import { findStickerByName } from "@/lib/sticker-data";
 import { getChatImageFromIndexedDB } from "@/lib/chat-asset-storage";
@@ -645,7 +646,7 @@ export function MemoryTimeline({
     }, [events, activeTags]);
 
     const clusters = useMemo(() => {
-        const parsed = filteredEvents.map(e => parseEntry(e, userName)).filter((e): e is ParsedEntry => e !== null);
+        const parsed = filteredEvents.map(e => parseEntry({ ...e, id: getNativeTimelineEntryKey(e) }, userName)).filter((e): e is ParsedEntry => e !== null);
         return clusterByTimeGap(parsed);
     }, [filteredEvents, userName]);
 

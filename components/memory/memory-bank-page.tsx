@@ -21,12 +21,14 @@ import {
     getLastCoreSummarizedTimestamp,
 } from "@/lib/memory-storage";
 import { hydrateChatStorage } from "@/lib/chat-storage";
-import { hideNativeTimelineEntries, loadNativeTimeline, loadNativeTimelineAsync, type NativeTimelineEntry } from "@/lib/short-term-assembler";
+import { getNativeTimelineEntryKey, hideNativeTimelineEntries, loadNativeTimeline, loadNativeTimelineAsync, type NativeTimelineEntry } from "@/lib/short-term-assembler";
 import { runSummarizationPipeline } from "@/lib/memory-summarizer";
 import { runCoreMemoryPipeline } from "@/lib/core-memory-builder";
 import { resolveAuxiliaryApiConfig, resolveUserIdentity } from "@/lib/settings-storage";
 import { generateEmbedding, resolveEmbeddingModel } from "@/lib/memory-embedding";
 import { BINDING_ACCENTS } from "@/lib/ui-accent-colors";
+import { MemoryRepairDialog } from "./memory-repair-dialog";
+import { entriesForMemoryTab } from "@/lib/short-term-memory-repair";
 
 type MemoryView = "list" | "detail" | "settings";
 type MemoryTab = "short" | "shared" | "core" | "long";
@@ -222,6 +224,8 @@ export function MemoryBankPage({
     const [selectedTimelineIds, setSelectedTimelineIds] = useState<Set<string>>(new Set());
     const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
     const [search, setSearch] = useState("");
+    const [repairOpen, setRepairOpen] = useState(false);
+    useEffect(() => { setRepairOpen(false); }, [view, selectedCharId, activeTab]);
     const query = useDeferredValue(search.trim().toLocaleLowerCase());
     const detailRequest = useRef(0);
     const matchesSearch = (text: string) => !query || text.toLocaleLowerCase().includes(query);
@@ -334,15 +338,8 @@ export function MemoryBankPage({
         const timeline = allTimeline;
         setCharacters(previous => previous.map(item => item.character.id === charId
             ? { ...item, shortTermCount: allTimeline.length } : item));
-        setShortTermEvents(timeline.filter(e =>
-            !(e.sourceApp === "moments" && e.postAuthorType === "user")
-            && !(e.sourceApp === "interview_magazine" && e.sourceDetail === "interview_shared_issue")
-        ));
-        setSharedEvents(timeline.filter(e =>
-            (e.sourceApp === "moments" && e.postAuthorType === "user") ||
-            (e.sourceApp === "chat" && e.sourceDetail === "group") ||
-            (e.sourceApp === "interview_magazine" && e.sourceDetail === "interview_shared_issue")
-        ));
+        setShortTermEvents(entriesForMemoryTab(timeline, "short"));
+        setSharedEvents(entriesForMemoryTab(timeline, "shared"));
         setLoading(false);
     }, []);
 
@@ -404,7 +401,7 @@ export function MemoryBankPage({
 
     const handleBulkDeleteTimeline = useCallback(() => {
         if (!selectedCharId || selectedTimelineIds.size === 0) return;
-        const selectedEntries = filterEvents.filter(event => selectedTimelineIds.has(event.id));
+        const selectedEntries = filterEvents.filter(event => selectedTimelineIds.has(getNativeTimelineEntryKey(event)));
         const removed = hideNativeTimelineEntries(selectedCharId, selectedEntries);
         cancelBulkSelect();
         loadDetailData(selectedCharId);
@@ -748,7 +745,10 @@ export function MemoryBankPage({
     if (view === "detail" && selectedChar) {
         return (
             <div className="flex flex-col absolute inset-0 overflow-hidden" style={{ padding: "0 16px" }}>
-                <input className="ui-input my-2 shrink-0" type="search" aria-label="搜索记忆" placeholder="搜索标签、聊天内容、昵称…" value={search} onChange={event => setSearch(event.target.value)} />
+                <div className="memory-search-actions"><input className="ui-input" type="search" aria-label="搜索记忆" placeholder="搜索标签、内容、昵称…" value={search} onChange={event => setSearch(event.target.value)} />
+                    {(activeTab === "short" || activeTab === "shared") && <button type="button" onClick={() => setRepairOpen(true)}>扫描遗漏／误删记忆</button>}</div>
+                {repairOpen && (activeTab === "short" || activeTab === "shared") && <MemoryRepairDialog key={`${selectedChar.id}:${activeTab}`} characterId={selectedChar.id} characterName={selectedChar.name} scope={activeTab} current={filterEvents}
+                    onClose={() => setRepairOpen(false)} onImported={() => { void loadDetailData(selectedChar.id); showNotice("所选记忆已按原时间恢复或导入"); }} />}
                 {/* Content */}
                 <div className="memory-detail-scroll flex-1 overflow-y-auto flex flex-col gap-2 min-h-0">
                     <MemoryDetailBoundary>

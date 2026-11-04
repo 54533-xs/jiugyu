@@ -97,7 +97,12 @@ async function main() {
     resolveChatScopeUserIdentity: () => identity, characterMatchesChatScope: () => true,
     resolveChatAccountUserIdentity: () => identity, sessionMatchesChatScope: session => (session.chatAccountId || null) === scope.chatAccountId });
   mock("lib/character-world-storage.ts", { loadCharacterWorldGroups: () => [{ id: "world", name: "冬日世界", memberIds: [character.id] }] });
-  mock("lib/settings-storage.ts", { USER_IDENTITIES_UPDATED_EVENT: "identity-updated" });
+  mock("lib/settings-storage.ts", { USER_IDENTITIES_UPDATED_EVENT: "identity-updated", loadUserIdentities: () => [identity] });
+  let generatedSignatures = 0, generatedCovers = 0, failProfileGeneration = false;
+  mock("lib/character-moments-generation.ts", {
+    generateCharacterMomentText: async (_id, kind) => { if (failProfileGeneration) throw Error("模拟生成失败"); if (kind === "signature") { generatedSignatures++; return "新的角色签名"; } return "冬夜的城市街景"; },
+    generateCharacterMomentCover: async () => { generatedCovers++; return { blob: new Blob(["generated"], { type: "image/png" }) }; },
+  });
   mock("lib/moments-storage.ts", { getAllPosts: () => posts, loadMomentPosts: () => posts, getUnreadMomentsNotifications: () => [], saveMomentsLastSeen() {},
     deleteMomentPost: id => { posts = posts.filter(post => post.id !== id); }, addMomentComment: value => { requestedComments++; return value; } });
   mock("lib/moments-engine.ts", { onUserComment() {}, MOMENT_PHOTO_GENERATION_FAILED_EVENT: "photo-failed" });
@@ -129,11 +134,25 @@ async function main() {
   assert.equal(container.querySelectorAll("[data-moment-post-id]").length, 10, "Personal timeline paginates without dropping old posts");
   assert.ok(!container.textContent.includes("别人的动态")); assert.ok(!container.textContent.includes("用户动态"));
   assert.match(container.textContent, /角色的个性签名/); assert.ok(!container.textContent.includes("用户签名"));
+  await click(button("刷新签名"));
+  assert.equal(generatedSignatures, 1); assert.equal(profiles.loadCharacterMomentsProfile(character.id).signature, "角色的个性签名", "Preview never replaces signature automatically");
+  await click(button("应用签名")); assert.equal(profiles.loadCharacterMomentsProfile(character.id).signature, "新的角色签名");
+  failProfileGeneration = true; await click(button("刷新签名"));
+  assert.equal(profiles.loadCharacterMomentsProfile(character.id).signature, "新的角色签名"); assert.ok(container.textContent.includes("模拟生成失败")); failProfileGeneration = false;
+  await click(button("更换角色朋友圈封面") || container.querySelector('[aria-label="更换角色朋友圈封面"]'));
+  await click(button("根据角色设定构思封面"));
+  assert.equal(props(container.querySelector('[aria-label="角色封面画面描述"]')).value, "冬夜的城市街景");
+  const savedURLCreate = URL.createObjectURL, savedURLRevoke = URL.revokeObjectURL;
+  URL.createObjectURL = () => "blob:generated-cover"; URL.revokeObjectURL = () => {};
+  await click(button("生成封面图片")); assert.equal(generatedCovers, 1);
+  assert.equal(profiles.loadCharacterMomentsProfile(character.id).coverAssetId, "character-cover", "Generated cover awaits Apply");
+  await click(button("应用封面")); assert.equal(profiles.loadCharacterMomentsProfile(character.id).coverAssetId, "cover-1");
+  URL.createObjectURL = savedURLCreate; URL.revokeObjectURL = savedURLRevoke;
   assert.ok(!container.querySelector('[aria-label="发布朋友圈"]'), "Personal timeline cannot publish as another character");
-  assert.match(container.querySelector('img[alt="朋友圈封面"]').getAttribute("src"), /character-cover/);
+  assert.match(container.querySelector('img[alt="朋友圈封面"]').getAttribute("src"), /cover-1/);
   await click(button("查看更多动态")); assert.equal(container.querySelectorAll("[data-moment-post-id]").length, 13);
   assert.equal(container.querySelectorAll("[data-moment-post-id]")[0].getAttribute("data-moment-post-id"), "post-12");
-  await click(button("角色的个性签名"));
+  await click(button("新的角色签名"));
   const signatureInput = container.querySelector('[aria-label="角色朋友圈个性签名"]');
   await act(async () => props(signatureInput).onBlur({ target: { value: "修改后的角色签名" } }));
   assert.equal(profiles.loadCharacterMomentsProfile(character.id).signature, "修改后的角色签名"); assert.equal(kv.kvGet("moments_signature"), "用户签名");
@@ -146,7 +165,7 @@ async function main() {
   const oldCreateURL = URL.createObjectURL, oldRevokeURL = URL.revokeObjectURL;
   URL.createObjectURL = () => "blob:test"; URL.revokeObjectURL = () => {};
   await act(async () => props(container.querySelector('input[type="file"]')).onChange({ target: { files: [{}], value: "" } }));
-  assert.equal(profiles.loadCharacterMomentsProfile(character.id).coverAssetId, "cover-1");
+  assert.equal(profiles.loadCharacterMomentsProfile(character.id).coverAssetId, "cover-2");
   assert.equal(profiles.loadCharacterMomentsProfile("char-b").coverAssetId, undefined);
   URL.createObjectURL = oldCreateURL; URL.revokeObjectURL = oldRevokeURL; document.createElement = createElement;
   await click([...container.querySelectorAll("button")].find(element => element.textContent === "评论"));
@@ -209,6 +228,22 @@ async function main() {
   await act(async () => { scope = { ...scope, chatAccountId: "alt" }; window.dispatchEvent(new CustomEvent("scope-updated", { detail: scope })); });
   await openCard(); await click(button("音视频通话")); await click(button("语音通话"));
   assert.deepEqual(deliveredCalls.at(-1), { sessionId: "alt-session", type: "voice" });
+  await unmount();
+
+  // Global feed avatar opens this identity's own timeline; back preserves the original DOM and scroll.
+  scope = { ...scope, chatAccountId: null };
+  posts.push({ id: "own", authorType: "user", authorId: "user", userIdentityId: identity.id, content: "主身份自己的朋友圈", createdAt: "2026-11-05" },
+    { id: "alt-own", authorType: "user", authorId: "user", chatAccountId: "alt", content: "小号自己的朋友圈", createdAt: "2026-11-05" },
+    { id: "other-persona", authorType: "user", authorId: "user", userIdentityId: "another-identity", content: "另一个用户身份的朋友圈", createdAt: "2026-11-05" });
+  const { MomentsFeed } = require(path.join(root, "components/chat/moments-feed.tsx"));
+  await render(React.createElement(MomentsFeed, { onCloseApp() {} }));
+  const originalBody = container.querySelector(".moments-feed-page .page-body"); originalBody.scrollTop = 190;
+  await click(container.querySelector('[aria-label="打开我的个人朋友圈"]'));
+  const personal = container.querySelector(".contact-moments-page");
+  assert.ok(personal.textContent.includes("主身份自己的朋友圈"));
+  assert.ok(!personal.textContent.includes("角色动态")); assert.ok(!personal.textContent.includes("小号自己的朋友圈"));
+  assert.ok(!personal.textContent.includes("另一个用户身份的朋友圈"));
+  await click(personal.querySelector('[aria-label="返回"]')); assert.equal(originalBody.scrollTop, 190);
   await unmount();
 
   // Fresh cache proves drafts and profile edits reach persistent IndexedDB.

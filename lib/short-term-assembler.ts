@@ -43,11 +43,10 @@ import {
     resolvePromptTimeAware,
     type PromptTimestampOptions,
 } from "./prompt-time";
-import { kvGet, kvSet, registerDynamicPrefix } from "./kv-db";
-
-const HIDDEN_SHORT_TERM_MEMORY_PREFIX = "ai_phone_hidden_short_term_memory:";
-const MAX_HIDDEN_SHORT_TERM_KEYS = 12000;
-registerDynamicPrefix(HIDDEN_SHORT_TERM_MEMORY_PREFIX);
+import { getNativeTimelineEntryKey } from "./native-timeline-key";
+import { mergeShortMemoryEntries, applyShortMemoryToChatHistory, hiddenMemoryKeys, isMemoryEntryDeleted } from "./short-term-memory-records";
+export { getNativeTimelineEntryKey } from "./native-timeline-key";
+export { hideNativeTimelineEntries } from "./short-term-memory-records";
 
 function formatPhotoDirectiveForPrompt(msg: ChatMessage): string {
     const description = msg.mediaData?.label?.trim() || "图片";
@@ -69,6 +68,10 @@ export type NativeTimelineEntry = {
     timestamp: string; // ISO date
     content: string;   // formatted content for display / summarization
     momentsMeta?: NativeMomentMeta;
+    memorySupplement?: boolean;
+    memoryRawContent?: string;
+    memoryScope?: "short" | "shared";
+    sourceLabel?: string;
     customAppId?: string;
     customAppName?: string;
     customAppLabel?: string;
@@ -92,45 +95,6 @@ export type NativeMomentMeta = {
     photoDescription?: string;
     comments: NativeMomentComment[];
 };
-
-/**
- * 短期记忆来自各 APP 的真实记录。这里保存“从角色短期记忆中排除”的稳定键，
- * 只影响记忆页和后续提示词，不会误删原聊天、朋友圈或剧情内容。
- */
-export function getNativeTimelineEntryKey(entry: NativeTimelineEntry): string {
-    return [
-        entry.sourceApp,
-        entry.sourceDetail ?? "",
-        entry.sessionId ?? "",
-        entry.groupSessionId ?? "",
-        entry.customAppId ?? "",
-        entry.id,
-    ].join(":");
-}
-
-function hiddenShortTermMemoryStorageKey(characterId: string): string {
-    return `${HIDDEN_SHORT_TERM_MEMORY_PREFIX}${characterId}`;
-}
-
-function loadHiddenShortTermMemoryKeys(characterId: string): Set<string> {
-    if (!characterId || typeof window === "undefined") return new Set();
-    try {
-        const parsed = JSON.parse(kvGet(hiddenShortTermMemoryStorageKey(characterId)) || "[]") as unknown;
-        return new Set(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : []);
-    } catch {
-        return new Set();
-    }
-}
-
-export function hideNativeTimelineEntries(characterId: string, entries: NativeTimelineEntry[]): number {
-    if (!characterId || entries.length === 0 || typeof window === "undefined") return 0;
-    const hidden = loadHiddenShortTermMemoryKeys(characterId);
-    const before = hidden.size;
-    for (const entry of entries) hidden.add(getNativeTimelineEntryKey(entry));
-    const compacted = Array.from(hidden).slice(-MAX_HIDDEN_SHORT_TERM_KEYS);
-    kvSet(hiddenShortTermMemoryStorageKey(characterId), JSON.stringify(compacted));
-    return Math.max(0, hidden.size - before);
-}
 
 /** A single feature's recent data block for prompt injection. */
 export type RecentBlock = {
@@ -215,6 +179,8 @@ function* assembleNativeTimeline(
         /** 限定聊天账号；undefined 表示跨账号读取，null 表示只读主号。 */
         chatAccountId?: string | null;
         excludeChatSessionId?: string;
+        includeDeleted?: boolean;
+        signal?: AbortSignal;
         timeAware?: boolean;
         promptTimestampOptions?: PromptTimestampOptions;
     }
@@ -462,6 +428,7 @@ function* assembleNativeTimeline(
     // Each post + its comments become ONE timeline entry.
     const posts = loadMomentPosts();
     for (const post of posts) {
+        if (++processedMessages % 100 === 0) yield;
         if (!canCharacterSeeMomentPost(post, characterId)) continue;
         const isCharPost = post.authorId === characterId;
         const isUserPost = post.authorType === "user";
@@ -603,6 +570,7 @@ function* assembleNativeTimeline(
         charName,
     });
     for (const storyEntry of storyEntries) {
+        if (++processedMessages % 100 === 0) yield;
         entries.push({
             id: storyEntry.id,
             sourceApp: "story",
@@ -664,6 +632,7 @@ function* assembleNativeTimeline(
         afterTimestamp: options?.afterTimestamp,
     });
     for (const vnEntry of vnEntries) {
+        if (++processedMessages % 100 === 0) yield;
         entries.push({
             id: vnEntry.id,
             sourceApp: "vn",
@@ -719,6 +688,7 @@ function* assembleNativeTimeline(
         afterTimestamp: options?.afterTimestamp,
     });
     for (const gameEntry of gameEntries) {
+        if (++processedMessages % 100 === 0) yield;
         entries.push({
             id: gameEntry.id,
             sourceApp: "game",
@@ -735,6 +705,7 @@ function* assembleNativeTimeline(
         && (!options?.afterTimestamp || entry.createdAt > options.afterTimestamp)
     );
     for (const diaryEntry of diaryEntries) {
+        if (++processedMessages % 100 === 0) yield;
         entries.push({
             id: diaryEntry.id,
             sourceApp: "diary",
@@ -750,6 +721,7 @@ function* assembleNativeTimeline(
         afterTimestamp: options?.afterTimestamp,
     });
     for (const noteWallEntry of noteWallEntries) {
+        if (++processedMessages % 100 === 0) yield;
         entries.push({
             id: noteWallEntry.id,
             sourceApp: "diary",
@@ -770,6 +742,7 @@ function* assembleNativeTimeline(
         afterTimestamp: options?.afterTimestamp,
     });
     for (const xiaohongshuEntry of xiaohongshuEntries) {
+        if (++processedMessages % 100 === 0) yield;
         entries.push({
             id: xiaohongshuEntry.id,
             sourceApp: "xiaohongshu",
@@ -790,6 +763,7 @@ function* assembleNativeTimeline(
         afterTimestamp: options?.afterTimestamp,
     });
     for (const checkPhoneEntry of checkPhoneEntries) {
+        if (++processedMessages % 100 === 0) yield;
         const rendered = renderCharacterMacro(renderUserNameMacro(checkPhoneEntry.content, userName), charName);
         entries.push({
             id: checkPhoneEntry.id,
@@ -811,6 +785,7 @@ function* assembleNativeTimeline(
         afterTimestamp: options?.afterTimestamp,
     });
     for (const interviewEntry of interviewEntries) {
+        if (++processedMessages % 100 === 0) yield;
         entries.push({
             id: interviewEntry.id,
             sourceApp: "interview_magazine",
@@ -831,6 +806,7 @@ function* assembleNativeTimeline(
         afterTimestamp: options?.afterTimestamp,
     });
     for (const cocreateEntry of cocreateEntries) {
+        if (++processedMessages % 100 === 0) yield;
         entries.push({
             id: cocreateEntry.id,
             sourceApp: "cocreate",
@@ -852,6 +828,7 @@ function* assembleNativeTimeline(
         afterTimestamp: options?.afterTimestamp,
     });
     for (const customEntry of customAppEntries) {
+        if (++processedMessages % 100 === 0) yield;
         const label = customEntry.appLabel || customEntry.appName || "APP";
         entries.push({
             id: customEntry.id,
@@ -871,16 +848,7 @@ function* assembleNativeTimeline(
         });
     }
 
-    // 删除短期记忆只建立排除标记，不破坏原 APP 内容；提示词组装也统一经过这里。
-    const hiddenKeys = loadHiddenShortTermMemoryKeys(characterId);
-    const visibleEntries = hiddenKeys.size > 0
-        ? entries.filter(entry => !hiddenKeys.has(getNativeTimelineEntryKey(entry))
-            && !(entry.sourceDetail === "direct" && hiddenKeys.has(getNativeTimelineEntryKey({ ...entry, sessionId: undefined }))))
-        : entries;
-
-    // Sort by timestamp ascending
-    visibleEntries.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-    return visibleEntries;
+    return mergeShortMemoryEntries(characterId, entries, options?.includeDeleted, options?.afterTimestamp);
 }
 
 export function loadNativeTimeline(...args: Parameters<typeof assembleNativeTimeline>): NativeTimelineEntry[] {
@@ -894,6 +862,7 @@ export async function loadNativeTimelineAsync(...args: Parameters<typeof assembl
     const iterator = assembleNativeTimeline(...args);
     let step = iterator.next();
     while (!step.done) {
+        if (args[1]?.signal?.aborted) throw new DOMException("扫描已停止", "AbortError");
         await new Promise<void>(resolve => setTimeout(resolve, 0));
         step = iterator.next();
     }
@@ -1065,13 +1034,14 @@ export function prepareShortTermContext(
     });
 
     const memConfig = loadMemoryConfig();
-    timeline = filterTimelineByAllowedSources(timeline, memConfig.shortTermAllowedSources);
+    timeline = filterTimelineByAllowedSources(mergeShortMemoryEntries(characterId, timeline, false, options?.afterTimestamp), memConfig.shortTermAllowedSources);
 
     // Activation context: full timeline for keyword matching (not truncated)
     const wbActivationContext = timeline.slice(-10).map(e => e.content).join("\n");
     const budget = memConfig.shortTermTokenBudget;
     const currentTag = getFeatureTag(appId);
-    const history = options?.history ?? [];
+    const history = applyShortMemoryToChatHistory(characterId, options?.history ?? [], appId);
+    const currentHistoryKeys = new Set(history.map(message => `${message.sessionId}\u0000${message.id}`));
     const characterName = loadCharacters().find(c => c.id === characterId)?.name ?? "角色";
     const wrapsCurrentHistory = appId === "chat" || appId === "group_chat" || appId === "story" || appId === "vn" || appId === "adventure";
     const skipDirectChatEntries = appId === "chat" && !options?.includeDirectChatEntries;
@@ -1085,9 +1055,10 @@ export function prepareShortTermContext(
         raw.push({ tag: "recent_moments", order: FEATURE_ORDER.moments, entries: momentsEntries });
     }
 
-    if (appId !== "story") {
+    if (appId !== "story" || timeline.some(entry => entry.sourceApp === "story" && entry.memorySupplement)) {
         const storyEntries = timeline.filter(e =>
             e.sourceApp === "story"
+            && (appId !== "story" || e.memorySupplement)
             && e.sourceDetail !== "black_market_theater"
             && !isChatOfflineEntry(e)
         );
@@ -1101,8 +1072,8 @@ export function prepareShortTermContext(
         raw.push({ tag: "recent_theater", order: FEATURE_ORDER.theater, entries: theaterEntries });
     }
 
-    if (appId !== "vn") {
-        const vnEntries = timeline.filter(e => e.sourceApp === "vn");
+    if (appId !== "vn" || timeline.some(entry => entry.sourceApp === "vn" && entry.memorySupplement)) {
+        const vnEntries = timeline.filter(e => e.sourceApp === "vn" && (appId !== "vn" || e.memorySupplement));
         if (vnEntries.length > 0) {
             raw.push({ tag: "recent_events", order: FEATURE_ORDER.vn, entries: vnEntries });
         }
@@ -1173,7 +1144,7 @@ export function prepareShortTermContext(
         }
     }
     if (skipDirectChatEntries) {
-        const otherChats = timeline.filter(e => e.sourceApp === "chat" && e.sourceDetail === "direct" && e.sessionId !== options?.excludeChatSessionId);
+        const otherChats = timeline.filter(e => e.sourceApp === "chat" && e.sourceDetail === "direct" && (e.sessionId !== options?.excludeChatSessionId || (e.memorySupplement && !currentHistoryKeys.has(`${e.sessionId}\u0000${e.id}`))));
         if (otherChats.length) raw.push({ tag: "recent_chat", order: FEATURE_ORDER.chat, entries: otherChats });
     }
 
@@ -1214,8 +1185,9 @@ export function prepareShortTermContext(
     const entryMeta = new Map<string, { entry: NativeTimelineEntry; sourceTag: string }>();
     for (const r of raw) {
         for (const e of r.entries) {
-            entryMeta.set(e.id, { entry: e, sourceTag: r.tag });
-            pool.push({ kind: "entry", timestamp: e.timestamp, tokens: estimateTokens(e.content) + 4, entryId: e.id, sourceTag: r.tag });
+            const key = getNativeTimelineEntryKey(e);
+            entryMeta.set(key, { entry: e, sourceTag: r.tag });
+            pool.push({ kind: "entry", timestamp: e.timestamp, tokens: estimateTokens(e.content) + 4, entryId: key, sourceTag: r.tag });
         }
     }
     for (let i = 0; i < history.length; i++) {
@@ -1257,7 +1229,7 @@ export function prepareShortTermContext(
     // Build recentBlocks from surviving entries
     const recentBlocks: RecentBlock[] = [];
     for (const r of raw) {
-        const surviving = r.entries.filter(e => survivingEntryIds.has(e.id));
+        const surviving = r.entries.filter(e => survivingEntryIds.has(getNativeTimelineEntryKey(e)));
         if (surviving.length === 0) continue;
         recentBlocks.push({ tag: r.tag, content: surviving.map(e => e.content).join("\n\n") });
     }
@@ -1318,6 +1290,8 @@ export function prepareGroupShortTermContext(
     unifiedRecentItems: UnifiedRecentItem[];
 } {
     const uniqueCharacterIds = [...new Set(characterIds)];
+    for (const characterId of uniqueCharacterIds) history = applyShortMemoryToChatHistory(characterId, history, "group_chat");
+    const currentHistoryKeys = new Set(history.map(message => `${message.sessionId}\u0000${message.id}`));
     const timelineByKey = new Map<string, NativeTimelineEntry>();
     const timeAware = resolvePromptTimeAware(options?.timeAware);
     const memConfig = loadMemoryConfig();
@@ -1332,16 +1306,18 @@ export function prepareGroupShortTermContext(
             timeAware,
             promptTimestampOptions: options?.promptTimestampOptions,
         });
-        timeline = filterTimelineByAllowedSources(timeline, allowed);
+        timeline = filterTimelineByAllowedSources(mergeShortMemoryEntries(characterId, timeline), allowed);
         for (const entry of timeline) {
-            if (entry.sourceApp === "chat" && entry.sourceDetail === "group" && entry.groupSessionId === options?.excludeGroupSessionId) {
+            if (entry.sourceApp === "chat" && entry.sourceDetail === "group" && entry.groupSessionId === options?.excludeGroupSessionId
+                && (!entry.memorySupplement || currentHistoryKeys.has(`${entry.groupSessionId}\u0000${entry.id}`))) {
                 continue;
             }
             timelineByKey.set(buildNativeTimelineKey(entry), entry);
         }
     }
 
-    const timeline = [...timelineByKey.values()].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    const deleted = new Set(uniqueCharacterIds.flatMap(id => [...hiddenMemoryKeys(id)]));
+    const timeline = [...timelineByKey.values()].filter(entry => !isMemoryEntryDeleted(entry, deleted)).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
     const activationPool = [
         ...timeline.map(entry => ({ timestamp: entry.timestamp, content: entry.content })),
         ...history.filter(msg => msg.mediaType !== "tool_notice").map(msg => ({ timestamp: msg.createdAt, content: msg.content })),

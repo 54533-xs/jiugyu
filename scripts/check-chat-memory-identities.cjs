@@ -41,16 +41,22 @@ async function main() {
     assert.ok(!JSON.stringify(identity).includes("主号"));
 
     const sessions = [{ id: "main-chat", contactId: "char" }, { id: "alt-chat", contactId: "char", chatAccountId: "alt" }];
+    const keys = load("lib/native-timeline-key.ts");
+    const records = load("lib/short-term-memory-records.ts", { "./native-timeline-key": keys,
+        "./kv-db": { kvGet: key => kv.get(key), kvSet: (key, value) => kv.set(key, value), registerDynamicPrefix() {} } }, { dispatchEvent() {} });
     const messages = [
         { id: "a", sessionId: "main-chat", role: "user", content: "主号的约定", createdAt: "2026-01-01" },
         { id: "b", sessionId: "alt-chat", role: "user", content: "小林的约定", createdAt: "2026-01-02" },
         { id: "c", sessionId: "alt-chat", role: "user", senderName: "旧昵称", content: "改名前的约定", createdAt: "2026-01-03" },
     ];
     const assembler = load("lib/short-term-assembler.ts", {
+        "./native-timeline-key": keys,
+        "./short-term-memory-records": records,
         "./chat-storage": {
             loadChatSessions: () => sessions,
             loadChatMessages: id => messages.filter(message => message.sessionId === id),
             isSystemInstructionMessage: () => false,
+            isReadingDiscussMessage: () => false,
         },
         "./character-storage": { loadCharacters: () => [{ id: "char", name: "角色" }] },
         "./settings-storage": { resolveUserIdentity: () => ({ name: "简初" }) },
@@ -80,6 +86,31 @@ async function main() {
     assert.equal(JSON.stringify(asyncTimeline), JSON.stringify(assembler.loadNativeTimeline("char")));
     const prepared = assembler.prepareShortTermContext("char", "chat", { timeline, history: [], excludeChatSessionId: "main-chat" });
     assert.ok(prepared.recentBlocks.some(block => block.content.includes("小林的约定")));
+    const mainEntry = timeline.find(entry => entry.id === "a");
+    records.hideNativeTimelineEntries("char", [mainEntry]);
+    const deletedContext = assembler.prepareShortTermContext("char", "chat", { timeline, history: messages.filter(message => message.sessionId === "main-chat") });
+    assert.equal(deletedContext.truncatedHistory.length, 0, "Deleted current-chat memory must not leak through direct history");
+    assert.ok(!deletedContext.recentBlocks.some(block => block.content.includes("主号的约定")), "Even an already assembled timeline must recheck deletions");
+    assert.equal(messages.find(message => message.id === "a").content, "主号的约定", "Original chat is preserved");
+    records.restoreNativeTimelineEntries("char", [mainEntry]);
+    assert.equal(assembler.prepareShortTermContext("char", "chat", { history: [messages[0]] }).truncatedHistory.length, 1);
+    records.importShortMemories("char", [{ id: "supplement", sourceApp: "story", sourceDetail: "story", timestamp: "2025-01-01T00:00:00Z", content: "旧剧情补充" }]);
+    assert.ok(assembler.prepareShortTermContext("char", "story", {}).recentBlocks.some(block => block.content.includes("旧剧情补充")));
+    assert.ok(!assembler.prepareShortTermContext("char", "story", { afterTimestamp: "2026-01-01T00:00:00Z" }).recentBlocks.some(block => block.content.includes("旧剧情补充")), "Branch date isolation also applies to manual memory");
+
+    const groupEntry = { id: "group-old", sourceApp: "chat", sourceDetail: "group", groupSessionId: "group-session", timestamp: "2026-01-02T00:00:00Z", content: "群聊旧记录补充", memoryRawContent: "群聊旧记录补充" };
+    records.importShortMemories("char", [groupEntry]);
+    const groupOptions = { excludeGroupSessionId: "group-session", timelines: new Map([["char", []]]) };
+    assert.ok(assembler.prepareGroupShortTermContext(["char"], [], groupOptions).unifiedRecentItems.some(item => item.kind === "event" && item.text.includes("群聊旧记录补充")), "Imported missing current-group records participate in memory");
+    const groupHistory = [{ id: "group-old", sessionId: "group-session", role: "user", content: "群聊旧记录补充", createdAt: groupEntry.timestamp }];
+    const deduplicatedGroup = assembler.prepareGroupShortTermContext(["char"], groupHistory, groupOptions);
+    assert.ok(!deduplicatedGroup.unifiedRecentItems.some(item => item.kind === "event" && item.text.includes("群聊旧记录补充")), "Current-group history and imported memory must not duplicate");
+    assert.equal(deduplicatedGroup.truncatedHistory.length, 1);
+    records.hideNativeTimelineEntries("char", [groupEntry]);
+    const deletedGroup = assembler.prepareGroupShortTermContext(["char"], groupHistory, groupOptions);
+    assert.equal(deletedGroup.truncatedHistory.length, 0, "Deleted shared memory cannot leak through current-group history");
+    assert.ok(!deletedGroup.unifiedRecentItems.some(item => item.kind === "event" && item.text.includes("群聊旧记录补充")));
+    assert.equal(groupHistory.length, 1, "Deleting memory does not delete visible group chat");
 
     const storage = load("lib/chat-storage.ts", {
         "./chat-scope-storage": { loadChatScope: () => ({ chatAccountId: null }), resolveChatAccountUserIdentity: () => ({ name: "简初" }) },
