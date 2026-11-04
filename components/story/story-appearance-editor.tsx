@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { XMarkIcon } from "@heroicons/react/24/solid";
 import { Avatar } from "@/components/ui/primitives";
 import CSSSchemeBar from "@/components/ui/css-scheme-picker";
@@ -8,6 +8,8 @@ import { StoryHtmlRenderer } from "@/components/ui/story-html-renderer";
 import { STORY_CSS_EXAMPLE } from "@/lib/css-examples";
 import { isStoryReadingPanelVisible, normalizeStoryChromeAppearance, storyChromeAttributes, storyMessageAppearanceAttributes, normalizeStoryBubbleAppearance, normalizeStoryMessageGap, storyAppearanceStyle, STORY_THEMES,
   type StoryAppearance, type StoryAppearancePrefs, type StoryBubbleAppearance } from "@/lib/story-appearance";
+
+import { loadStoryAppearanceEditorState, saveStoryAppearanceEditorState, type StoryAppearanceEditorState } from "@/lib/story-appearance-editor-state";
 
 function RangeSetting({ label, value, min, max, step = 1, unit = "", onChange }: {
   label: string; value: number; min: number; max: number; step?: number; unit?: string; onChange: (value: number) => void;
@@ -48,18 +50,36 @@ function RangeSetting({ label, value, min, max, step = 1, unit = "", onChange }:
   </div>;
 }
 
-export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, characterName, userAvatar, characterAvatar, onSettingsChange, onCSSChange, onApplyAppearance, onClose }: {
-  initialPrefs: StoryAppearancePrefs; initialCSS: string; userName: string; characterName: string; userAvatar?: string; characterAvatar?: string;
+export function StoryAppearanceEditor({ sessionId, initialPrefs, initialCSS, userName, characterName, userAvatar, characterAvatar, onSettingsChange, onCSSChange, onApplyAppearance, onClose }: {
+  sessionId: string; initialPrefs: StoryAppearancePrefs; initialCSS: string; userName: string; characterName: string; userAvatar?: string; characterAvatar?: string;
   onSettingsChange: (patch: Omit<StoryAppearancePrefs, "appearance">) => void; onCSSChange: (css: string) => void;
   onApplyAppearance: (appearance: StoryAppearance | undefined) => void; onClose: () => void;
 }) {
+  const [initialEditorState] = useState(() => loadStoryAppearanceEditorState(sessionId, initialPrefs.appearance));
   const [prefs, setPrefs] = useState<StoryAppearancePrefs>(() => ({ theme: initialPrefs.theme, wallpaper: initialPrefs.wallpaper,
-    readingPanel: initialPrefs.readingPanel, chrome: initialPrefs.chrome, appearance: initialPrefs.appearance }));
+    readingPanel: initialPrefs.readingPanel, chrome: initialPrefs.chrome, appearance: initialEditorState.draft ? initialEditorState.draft.appearance : initialPrefs.appearance }));
   const [css, setCSS] = useState(initialCSS);
-  const [role, setRole] = useState<"user" | "assistant" | "both">("user");
+  const [role, setRole] = useState(initialEditorState.role);
+  const [barsOpen, setBarsOpen] = useState(initialEditorState.barsOpen);
+  const [cssOpen, setCSSOpen] = useState(initialEditorState.cssOpen);
   const [notice, setNotice] = useState("");
   const [wallpaperLoading, setWallpaperLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const appliedAppearanceRef = useRef(initialPrefs.appearance);
+  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressRef = useRef<StoryAppearanceEditorState>(initialEditorState);
+  progressRef.current = { role, barsOpen, cssOpen, scrollTop: progressRef.current.scrollTop,
+    draft: JSON.stringify(prefs.appearance) === JSON.stringify(appliedAppearanceRef.current) ? undefined
+      : { appearance: prefs.appearance, baseAppearance: appliedAppearanceRef.current } };
+  const saveProgress = useCallback(() => {
+    saveStoryAppearanceEditorState(sessionId, { ...progressRef.current, scrollTop: mainRef.current?.scrollTop ?? progressRef.current.scrollTop });
+  }, [sessionId]);
+  useLayoutEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = initialEditorState.scrollTop;
+    return () => { if (scrollTimer.current) clearTimeout(scrollTimer.current); saveProgress(); };
+  }, [initialEditorState.scrollTop, saveProgress]);
+  useEffect(() => { saveProgress(); }, [role, barsOpen, cssOpen, prefs.appearance, saveProgress]);
   const rootRef = useRef<HTMLDivElement>(null);
   const fileRequest = useRef(0);
   const [palette, setPalette] = useState({ backgroundColor: "#ffffff", textColor: "#334155", dialogueColor: "#334155", boldColor: "#1e293b" });
@@ -119,8 +139,12 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
 
   return <div ref={rootRef} className="story-beautify-page" role="dialog" aria-modal="true" aria-label="剧情美化"
     onTouchStart={event => event.stopPropagation()} onTouchMove={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()} onMouseMove={event => event.stopPropagation()}>
-    <header><strong>剧情美化</strong><button type="button" onClick={onClose} aria-label="关闭美化"><XMarkIcon width={20} /></button></header>
-    <main>
+    <header><strong>剧情美化</strong><button type="button" onClick={() => { saveProgress(); onClose(); }} aria-label="关闭美化"><XMarkIcon width={20} /></button></header>
+    <main ref={mainRef} onScroll={event => {
+      progressRef.current.scrollTop = event.currentTarget.scrollTop;
+      if (scrollTimer.current) clearTimeout(scrollTimer.current);
+      scrollTimer.current = setTimeout(saveProgress, 180);
+    }}>
       <section className="story-beautify-card">
         <h3>背景壁纸</h3>
         {prefs.wallpaper ? <img className="story-beautify-wallpaper" src={prefs.wallpaper} alt="当前剧情壁纸" /> : <p>未设置壁纸</p>}
@@ -142,7 +166,7 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
         {STORY_THEMES.map(theme => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
       </select></label>
 
-      <details className="story-beautify-card story-beautify-bars"><summary>顶栏、底栏与按钮</summary>
+      <details className="story-beautify-card story-beautify-bars" open={barsOpen} onToggle={event => setBarsOpen(event.currentTarget.open)}><summary>顶栏、底栏与按钮</summary>
         <p>两栏共用背景透明度与文字、图标颜色。按钮透明度只改变背景小方块，设置后立即保存应用。</p>
         <RangeSetting label="顶栏与底栏背景透明度" value={100 - chrome.barOpacity} min={0} max={100} unit="％" onChange={value => patchChrome({ barOpacity: 100 - value })} />
         <RangeSetting label="两栏按钮背景透明度" value={100 - chrome.buttonOpacity} min={0} max={100} unit="％" onChange={value => patchChrome({ buttonOpacity: 100 - value })} />
@@ -159,8 +183,12 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
           <button type="button" aria-pressed={role === "assistant"} onClick={() => setRole("assistant")}>角色</button>
           <button type="button" aria-pressed={role === "both"} onClick={() => setRole("both")}>一起设置</button>
         </div>
-        <p>{role === "both" ? "以用户当前数值显示，修改的项目同时应用双方，其余项目保留各自设置。" : "基础美化需保存并应用，关闭页面会放弃未保存的修改。"}</p>
+        <p>{role === "both" ? "以用户当前数值显示，修改的项目同时应用双方，其余项目保留各自设置。" : "基础美化会保留编辑进度，保存并应用后生效。"}</p>
         <h4>气泡</h4>
+        <label className="story-beautify-preset"><span>气泡位置</span><select aria-label="气泡位置" value={appearance.bubblePosition} onChange={event => patch({ bubblePosition: event.target.value as StoryBubbleAppearance["bubblePosition"] })}>
+          <option value="left">靠左</option><option value="center">居中（左右留白一致）</option><option value="right">靠右</option>
+        </select></label>
+        <p>独立控制气泡位置；头像位置单独设置，正文保持正常排版。</p>
         {colorSetting("backgroundColor", "背景颜色")}
         <RangeSetting label="背景透明度" value={100 - appearance.backgroundOpacity} min={0} max={100} unit="％" onChange={value => patch({ backgroundOpacity: 100 - value })} />
         <RangeSetting label="内边距" value={appearance.padding} min={0} max={32} unit="px" onChange={value => patch({ padding: value })} />
@@ -209,7 +237,7 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
         <p>基础美化在此预览，保存并应用后生效；壁纸、阅读面板、主题、两栏设置和 CSS 实时保存应用。HTML 卡片保留自身样式。</p>
       </section>
 
-      <details className="story-beautify-card story-beautify-css"><summary>高级自定义 CSS</summary>
+      <details className="story-beautify-card story-beautify-css" open={cssOpen} onToggle={event => setCSSOpen(event.currentTarget.open)}><summary>高级自定义 CSS</summary>
         <textarea aria-label="剧情自定义 CSS" className="story-css-box" value={css} onChange={event => applyCSS(event.target.value)} placeholder="在这里输入剧情页面 CSS" />
         <div className="story-beautify-actions"><CSSSchemeBar target="story" currentCSS={css} onLoad={applyCSS} />
           <button type="button" onClick={() => applyCSS(STORY_CSS_EXAMPLE)}>加载白色基础模板</button><button type="button" onClick={() => applyCSS("")}>清除 CSS</button></div>
@@ -217,6 +245,6 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
       <p className="story-beautify-notice" role="status">{wallpaperLoading ? "正在读取壁纸…" : notice || "壁纸、阅读面板、主题、两栏设置和 CSS 修改后立即保存，关闭美化不会撤销。"}</p>
     </main>
     {!panelVisible && <footer><button type="button" onClick={() => { setPrefs(previous => ({ ...previous, appearance: undefined })); setNotice("基础美化已重置，保存并应用后生效。"); }}>重置基础美化</button>
-      <button type="button" className="story-beautify-save" onClick={() => { onApplyAppearance(prefs.appearance); setNotice("基础美化已保存并应用，可继续调整。"); }}>保存并应用</button></footer>}
+      <button type="button" className="story-beautify-save" onClick={() => { onApplyAppearance(prefs.appearance); appliedAppearanceRef.current = prefs.appearance; progressRef.current.draft = undefined; saveProgress(); setNotice("基础美化已保存并应用，可继续调整。"); }}>保存并应用</button></footer>}
   </div>;
 }

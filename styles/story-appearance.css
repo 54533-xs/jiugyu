@@ -4,6 +4,7 @@
 .story-app-shell[data-story-reading-panel="hidden"]::after { display: none; }
 .story-stage-inner.story-free-layout { background: transparent; box-shadow: none; border: 0; padding-inline: 0; gap: var(--story-message-gap, 24px); }
 .story-free-layout > .story-row[data-role="user"] {
+  --story-current-bubbleAlign: var(--story-user-bubbleAlign);
   --story-current-background: var(--story-user-background);
   --story-current-padding: var(--story-user-padding);
   --story-current-radius: var(--story-user-radius);
@@ -18,6 +19,7 @@
   --story-current-avatarRadius: var(--story-user-avatarRadius);
 }
 .story-free-layout > .story-row[data-role="assistant"] {
+  --story-current-bubbleAlign: var(--story-assistant-bubbleAlign);
   --story-current-background: var(--story-assistant-background);
   --story-current-padding: var(--story-assistant-padding);
   --story-current-radius: var(--story-assistant-radius);
@@ -31,8 +33,8 @@
   --story-current-avatarSize: var(--story-assistant-avatarSize);
   --story-current-avatarRadius: var(--story-assistant-avatarRadius);
 }
-.story-free-layout > .story-row .story-bubble-wrap { align-items: flex-start; }
-.story-free-layout > .story-row[data-role="user"] .story-bubble-wrap { align-items: flex-end; }
+.story-free-layout > .story-row { min-width: 0; box-sizing: border-box; }
+.story-free-layout > .story-row .story-bubble-wrap { width: 100%; box-sizing: border-box; align-items: var(--story-current-bubbleAlign,center); }
 .story-free-layout > .story-row:is([data-role="user"],[data-role="assistant"]) .story-bubble {
   box-sizing: border-box; width: 100%; min-width: 0; max-width: var(--story-current-maxWidth);
   background: var(--story-current-background); padding: var(--story-current-padding); border-radius: var(--story-current-radius);
@@ -43,6 +45,10 @@
   font-size: inherit; line-height: inherit; color: inherit;
 }
 .story-free-layout .story-bubble .story-richtext p { margin-block: var(--story-current-paragraphGap); }
+/* The free layout starts text evenly inside the bubble, without reader-only indentation. */
+.story-free-layout .story-bubble .story-richtext > p,
+.story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p { text-indent: 0; }
+.story-free-layout .story-bubble .story-richtext .story-br-indent { width: 0; }
 .story-free-layout .story-bubble .story-richtext p:first-child { margin-top: 0; }
 .story-free-layout .story-bubble .story-richtext p:last-child { margin-bottom: 0; }
 .story-free-layout .story-bubble .story-richtext :is(em,i) { color: inherit; }
@@ -117,16 +123,13 @@
 
 /* All message states use these hooks: saved messages, streaming, and waiting. */
 .story-free-layout > .story-row[data-story-avatar-layout="center"] > .story-msg-head {
-  flex-direction: column; align-items: center; width: 100%; max-width: var(--story-current-maxWidth); align-self: flex-start; gap: 6px;
+  flex-direction: column; align-items: center; width: 100%; max-width: var(--story-current-maxWidth); align-self: var(--story-current-bubbleAlign,center); gap: 6px;
 }
-.story-free-layout > .story-row[data-role="user"][data-story-avatar-layout="center"] > .story-msg-head { align-self: flex-end; }
 .story-free-layout > .story-row[data-story-avatar-layout="center"] .story-msg-meta { align-items: center; text-align: center; }
 .story-free-layout > .story-row[data-role="assistant"][data-story-avatar-layout="reverse"] > .story-msg-head { flex-direction: row-reverse; }
 .story-free-layout > .story-row[data-role="assistant"][data-story-avatar-layout="reverse"] .story-msg-meta { align-items: flex-end; }
-.story-free-layout > .story-row[data-role="assistant"][data-story-avatar-layout="reverse"] .story-bubble-wrap { align-items: flex-end; }
 .story-free-layout > .story-row[data-role="user"][data-story-avatar-layout="reverse"] > .story-msg-head { flex-direction: row; }
 .story-free-layout > .story-row[data-role="user"][data-story-avatar-layout="reverse"] .story-msg-meta { align-items: flex-start; }
-.story-free-layout > .story-row[data-role="user"][data-story-avatar-layout="reverse"] .story-bubble-wrap { align-items: flex-start; }
 .story-beautify-bars summary { cursor: pointer; font-size: calc(13px * var(--app-text-scale,1)); }
 .story-beautify-check { display: flex; align-items: center; gap: 8px; margin: 14px 0; font-size: calc(12px * var(--app-text-scale,1)); }
 .story-beautify-preview > .story-beautify-preview-header { position: relative; inset: auto; margin-bottom: 14px; border-radius: 8px; }

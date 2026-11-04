@@ -1233,11 +1233,13 @@ export const STORY_CSS_EXAMPLE = `/* 剧情美化 · 白色基础模板
 
 /* 03 用户与角色气泡（两边分开改，作用于普通正文；HTML 卡片保留自身样式）
 以下变量用于“去掉阅读面板”的布局。放在消息行上可覆盖基础美化的变量。
+bubbleAlign：flex-start 靠左、center 居中、flex-end 靠右，与头像位置独立。
 .story-stage-inner > .story-row[data-role="assistant"] {
   --story-assistant-background: #ffffff;
   --story-assistant-padding: 12px;
   --story-assistant-radius: 12px;
   --story-assistant-maxWidth: 100%;
+  --story-assistant-bubbleAlign: center;
   --story-assistant-fontSize: 14px;
   --story-assistant-textColor: #334155;
   --story-assistant-dialogueColor: #64748b;
@@ -1250,6 +1252,7 @@ export const STORY_CSS_EXAMPLE = `/* 剧情美化 · 白色基础模板
   --story-user-padding: 12px;
   --story-user-radius: 12px;
   --story-user-maxWidth: 100%;
+  --story-user-bubbleAlign: center;
   --story-user-fontSize: 14px;
   --story-user-textColor: #334155;
   --story-user-dialogueColor: #64748b;
@@ -1278,8 +1281,8 @@ export const STORY_CSS_EXAMPLE = `/* 剧情美化 · 白色基础模板
 */
 /* 居中：头像在气泡上方，昵称时间在头像下面。
 .story-stage-inner > .story-row[data-role] > .story-msg-head { flex-direction: column; align-items: center; width: 100%; max-width: var(--story-current-maxWidth,100%); gap: 6px; }
-.story-stage-inner > .story-row[data-role="assistant"] > .story-msg-head { align-self: flex-start; }
-.story-stage-inner > .story-row[data-role="user"] > .story-msg-head { align-self: flex-end; }
+.story-stage-inner > .story-row[data-role="assistant"] > .story-msg-head { align-self: var(--story-assistant-bubbleAlign,center); }
+.story-stage-inner > .story-row[data-role="user"] > .story-msg-head { align-self: var(--story-user-bubbleAlign,center); }
 .story-stage-inner > .story-row[data-role] .story-msg-meta { align-items: center; text-align: center; }
 */
 /* 左右对调：角色右、用户左。
@@ -1287,8 +1290,6 @@ export const STORY_CSS_EXAMPLE = `/* 剧情美化 · 白色基础模板
 .story-stage-inner > .story-row[data-role="user"] > .story-msg-head { flex-direction: row; max-width: none; }
 .story-stage-inner > .story-row[data-role="assistant"] .story-msg-meta { align-items: flex-end; }
 .story-stage-inner > .story-row[data-role="user"] .story-msg-meta { align-items: flex-start; }
-.story-stage-inner > .story-row[data-role="assistant"] .story-bubble-wrap { align-items: flex-end; }
-.story-stage-inner > .story-row[data-role="user"] .story-bubble-wrap { align-items: flex-start; }
 */
 
 /* 06 昵称和时间：显示/隐藏、位置、大小与自定义字符
@@ -1395,6 +1396,9 @@ button[data-story-action="beautify"] { transform: translate(0px, 0px); }
 
 /* 13 正文、对白、加粗、引用、代码、图片、表格与章节
 .story-richtext { font-family: var(--story-font); }
+.story-free-layout .story-bubble .story-richtext > p,
+.story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p { text-indent: 0; }
+.story-free-layout .story-bubble .story-richtext .story-br-indent { width: 0; }
 .story-richtext em,
 .story-richtext i { color: #64748b; }
 .story-richtext strong,

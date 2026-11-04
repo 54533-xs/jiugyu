@@ -7,6 +7,7 @@ export type StoryBubbleAppearance = {
   padding?: number;
   radius?: number;
   maxWidth?: number;
+  bubblePosition?: "left" | "center" | "right";
   fontSize?: number;
   textColor?: string;
   dialogueColor?: string;
@@ -46,6 +47,7 @@ export function normalizeStoryBubbleAppearance(input?: StoryBubbleAppearance) {
   return {
     backgroundColor: color(value.backgroundColor), backgroundOpacity: numberInRange(value.backgroundOpacity, 0, 0, 100),
     padding: numberInRange(value.padding, 12, 0, 32), radius: numberInRange(value.radius, 12, 0, 40), maxWidth: numberInRange(value.maxWidth, 100, 55, 100),
+    bubblePosition: value.bubblePosition === "left" || value.bubblePosition === "right" ? value.bubblePosition : "center",
     fontSize: numberInRange(value.fontSize, 14, 10, 28), textColor: color(value.textColor), dialogueColor: color(value.dialogueColor), boldColor: color(value.boldColor),
     lineHeight: numberInRange(value.lineHeight, 1.78, 1.2, 2.6), paragraphGap: numberInRange(value.paragraphGap, 12, 0, 32),
     avatarLayout: value.avatarLayout === "center" || value.avatarLayout === "reverse" ? value.avatarLayout : "default",
@@ -99,6 +101,7 @@ export function storyAppearanceStyle(prefs: StoryAppearancePrefs): CSSProperties
     const prefix = `--story-${role}-`;
     style[`${prefix}background`] = `color-mix(in srgb, ${value.backgroundColor || (role === "user" ? "var(--c-story-bubble-user, #f0f0f0)" : "var(--c-story-bubble-bg, #ffffff)")} ${value.backgroundOpacity}%, transparent)`;
     for (const key of ["padding", "radius", "fontSize", "paragraphGap", "avatarSize"] as const) style[`${prefix}${key}`] = `${value[key]}px`;
+    style[`${prefix}bubbleAlign`] = value.bubblePosition === "left" ? "flex-start" : value.bubblePosition === "right" ? "flex-end" : "center";
     style[`${prefix}maxWidth`] = `${value.maxWidth}%`;
     style[`${prefix}lineHeight`] = value.lineHeight;
     style[`${prefix}textColor`] = value.textColor || (role === "user" ? "var(--c-story-text-user, var(--c-story-text, #334155))" : "var(--c-story-text, #334155)");

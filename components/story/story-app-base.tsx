@@ -2862,7 +2862,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
         </div>
       ) : null}
 
-      {cssModalOpen && <StoryAppearanceEditor key={currentSession.id}
+      {cssModalOpen && <StoryAppearanceEditor key={currentSession.id} sessionId={currentSession.id}
         initialPrefs={uiPrefs} initialCSS={currentSession.customCSS || ""}
         userName={userIdentity?.name?.trim() || "我"} characterName={storyDisplayName}
         userAvatar={userIdentity?.avatarUrl || undefined} characterAvatar={storyAvatar || undefined}

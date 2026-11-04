@@ -60,11 +60,13 @@ async function main() {
   const { StoryAppearanceEditor } = require(path.join(root, "components/story/story-appearance-editor.tsx"));
   const container = document.getElementById("root");
   let renderer = createRoot(container);
+  let sessionId = "appearance-test";
+  const editorState = require(path.join(root, "lib/story-appearance-editor-state.ts"));
   let stored = { theme: "paper", voiceEnabled: true }, storedCSS = ".example { color: red; }", applied = 0, closed = false;
   const settingsPatches = [];
   const original = { ...stored };
   const render = async () => act(async () => {
-    renderer.render(React.createElement(StoryAppearanceEditor, { initialPrefs: stored, initialCSS: storedCSS, userName: "简初", characterName: "角色甲",
+    renderer.render(React.createElement(StoryAppearanceEditor, { sessionId, initialPrefs: stored, initialCSS: storedCSS, userName: "简初", characterName: "角色甲",
       onSettingsChange: patch => { settingsPatches.push(patch); stored = { ...stored, ...patch }; },
       onCSSChange: css => { storedCSS = css; },
       onClose: () => { closed = true; }, onApplyAppearance: appearance => { applied++; stored = { ...stored, appearance }; } }));
@@ -162,6 +164,8 @@ async function main() {
   await change(input("字体大小"), "19"); await change(input("内边距"), "18");
   await change(input("默认文字颜色"), "#778899"); await change(input("消息间距"), "32");
   await change(input("头像位置"), "center");
+  await change(input("气泡位置"), "center");
+  await change(input("气泡最大宽度"), "70");
   assert.equal(container.querySelectorAll('.story-beautify-preview .story-row[data-story-avatar-layout="center"]').length, 2);
   assert.ok(container.querySelector('.story-beautify-preview .story-row .story-msg-meta .story-msg-time'), "Centered preview includes time below the avatar");
   assert.equal(stored.appearance.user.fontSize, 21, "Together edits also need Apply");
@@ -169,17 +173,35 @@ async function main() {
   for (const role of ["user", "assistant"]) {
     assert.equal(stored.appearance[role].fontSize, 19); assert.equal(stored.appearance[role].padding, 18);
     assert.equal(stored.appearance[role].textColor, "#778899");
+    assert.equal(stored.appearance[role].bubblePosition, "center"); assert.equal(stored.appearance[role].maxWidth, 70);
   }
   assert.equal(stored.appearance.assistant.dialogueColor, "#abcdef", "Together edits preserve untouched per-role differences");
   assert.equal(stored.appearance.user.backgroundOpacity, 25); assert.equal(stored.appearance.messageGap, 32);
+  const toggleSection = async (className, open) => act(async () => {
+    const element = container.querySelector(className);
+    const key = Object.keys(element).find(name => name.startsWith("__reactProps$"));
+    element.open = open;
+    element[key].onToggle({ currentTarget: element });
+  });
+  await toggleSection(".story-beautify-bars", true); await toggleSection(".story-beautify-css", true);
+  await act(async () => {
+    const main = container.querySelector(".story-beautify-page > main"); main.scrollTop = 321;
+    main[Object.keys(main).find(name => name.startsWith("__reactProps$"))].onScroll({ currentTarget: main });
+  });
   await reopen();
+  assert.equal(button("一起设置").getAttribute("aria-pressed"), "true", "Target is remembered instead of returning to User");
+  assert.equal(container.querySelector(".story-beautify-bars").hasAttribute("open"), true);
+  assert.equal(container.querySelector(".story-beautify-css").hasAttribute("open"), true);
+  assert.equal(container.querySelector(".story-beautify-page > main").scrollTop, 321);
   assert.equal(input("字体大小").getAttribute("value"), "19");
   assert.equal(input("头像位置").value, "center");
   assert.equal(input("显示顶栏头像").checked, false);
   assert.equal(input("顶栏与底栏背景透明度").getAttribute("value"), "40");
-  await click(button("角色")); await change(input("头像位置"), "reverse"); await click(button("保存并应用"));
+  await click(button("角色")); await change(input("头像位置"), "reverse"); await change(input("气泡位置"), "right"); await click(button("保存并应用"));
   assert.equal(stored.appearance.user.avatarLayout, "center"); assert.equal(stored.appearance.assistant.avatarLayout, "reverse");
-  await click(button("用户"));
+  assert.equal(stored.appearance.user.bubblePosition, "center"); assert.equal(stored.appearance.assistant.bubblePosition, "right");
+  await click(button("用户")); await change(input("气泡位置"), "left"); await click(button("保存并应用"));
+  assert.equal(stored.appearance.user.bubblePosition, "left"); assert.equal(stored.appearance.assistant.bubblePosition, "right");
   await click(button("恢复用户默认样式"));
   await click(button("保存并应用"));
   assert.equal(stored.appearance.user, undefined); assert.equal(stored.appearance.assistant.fontSize, 19);
@@ -206,11 +228,18 @@ async function main() {
   await click(container.querySelector('[aria-label="关闭美化"]')); assert.ok(closed);
   await reopen();
   assert.equal(stored.wallpaper, wallpaper); assert.equal(stored.theme, "night");
-  assert.equal(input("字体大小").getAttribute("value"), "14", "Closing discards unsaved basic appearance");
-  assert.match(input("剧情自定义 CSS").value, /letter-spacing/);
+  assert.equal(button("一起设置").getAttribute("aria-pressed"), "true");
+  assert.equal(input("字体大小").getAttribute("value"), "25", "Closing retains the pending basic draft");
+  assert.equal(stored.appearance.user, undefined, "Retaining a draft must not apply it to the actual story");
+  assert.equal(stored.appearance.assistant, undefined);
+  assert.ok(editorState.loadStoryAppearanceEditorState(sessionId, stored.appearance).draft);
+  const cssInput = input("剧情自定义 CSS");
+  const cssProps = cssInput[Object.keys(cssInput).find(key => key.startsWith("__reactProps$"))];
+  assert.match(cssInput.value, /letter-spacing/, JSON.stringify({ storedCSS, rendered: cssProps.value, html: cssInput.outerHTML }));
   await click(button("重置基础美化"));
   assert.equal(stored.appearance.messageGap, 32, "Reset remains a draft until Apply");
   await click(button("保存并应用")); assert.equal(stored.appearance, undefined);
+  assert.equal(editorState.loadStoryAppearanceEditorState(sessionId, stored.appearance).draft, undefined, "Apply clears the pending draft");
   assert.equal(stored.wallpaper, wallpaper); assert.equal(stored.theme, "night"); assert.match(storedCSS, /letter-spacing/);
   await click(button("清除 CSS")); assert.equal(storedCSS, "");
   await click(button("加载白色基础模板")); assert.ok(storedCSS.length > 100);
@@ -272,10 +301,46 @@ async function main() {
   assert.ok(source.includes('storyMessageAppearanceAttributes(uiPrefs, message.role)'));
   assert.ok(source.includes('storyMessageAppearanceAttributes(uiPrefs, "assistant")'));
   assert.ok(source.includes('appearancePrefs={uiPrefs}'));
+  // Position is independent of avatar side, and width/padding stay symmetric in CSS.
+  assert.equal(appearance.normalizeStoryBubbleAppearance({ bubblePosition: "bad" }).bubblePosition, "center");
+  const positionVars = appearance.storyAppearanceStyle({ appearance: { user: { bubblePosition: "left" }, assistant: { bubblePosition: "right", avatarLayout: "center" } } });
+  assert.equal(positionVars["--story-user-bubbleAlign"], "flex-start"); assert.equal(positionVars["--story-assistant-bubbleAlign"], "flex-end");
+  assert.equal(appearance.storyAppearanceStyle({})["--story-user-bubbleAlign"], "center");
+  const fixture = document.createElement("div"); fixture.innerHTML = '<div class="story-free-layout"><article class="story-row" data-role="user" data-story-avatar-layout="reverse"><div class="story-bubble-wrap"><div class="story-bubble"><div class="story-richtext"><div class="smsg-fixture"><p>正文<br><span class="story-br-indent"></span>换行</p></div></div></div></div></article></div>';
+  const declarations = (element, prop) => {
+    const values = [];
+    style.walkRules(rule => {
+      if (!rule.nodes.some(node => node.prop === prop)) return;
+      if (rule.selector.includes("::") || rule.selector.includes(":focus-within")) return;
+      if (element.matches(rule.selector)) rule.walkDecls(prop, decl => values.push(decl.value));
+    }); return values;
+  };
+  assert.deepEqual(declarations(fixture.querySelector(".story-bubble-wrap"), "align-items"), ["var(--story-current-bubbleAlign,center)"], "Avatar reversal never changes bubble position");
+  assert.deepEqual(declarations(fixture.querySelector("p"), "text-indent"), ["0"], "Reader-only paragraph indentation does not leak into custom layout");
+  assert.deepEqual(declarations(fixture.querySelector(".story-br-indent"), "width"), ["0"]);
   const callsBeforeClose = settingsPatches.length;
   await chooseFile(); await act(async () => renderer.unmount());
   await act(async () => { readers[3].result = "late"; readers[3].onload(); });
   assert.equal(settingsPatches.length, callsBeforeClose, "Late wallpaper reads cannot save after closing");
-  console.log("✅ 剧情美化：双方/独立设置、三种头像布局、按钮仅背景透明、两栏统一文字图标颜色、窄滑条防滑动误触与头像隐藏、即时保存/基础应用不关闭、恢复重置、完整白色模板与稳定按钮选择器；无 API 调用");
+  // Keep session drafts isolated; ignore an old draft after an externally applied style changes.
+  const pending = { user: { fontSize: 24 } }, base = { user: { fontSize: 18 } };
+  editorState.saveStoryAppearanceEditorState("draft-a", { role: "both", barsOpen: true, cssOpen: true, scrollTop: 450, draft: { appearance: pending, baseAppearance: base } });
+  assert.equal(editorState.loadStoryAppearanceEditorState("draft-a", base).draft.appearance.user.fontSize, 24);
+  assert.equal(editorState.loadStoryAppearanceEditorState("draft-a", { user: { fontSize: 20 } }).draft, undefined);
+  assert.equal(editorState.loadStoryAppearanceEditorState("draft-b", base).draft, undefined);
+  assert.equal(editorState.loadStoryAppearanceEditorState("draft-b", base).role, "both", "New stories use the last selected editing target");
+  // Simulate a fresh app cache after queued IndexedDB writes have completed.
+  const Dexie = require("dexie").default;
+  const disk = new Dexie("AiPhoneKvDB"); disk.version(1).stores({ entries: "key" });
+  const diskDraft = await disk.table("entries").get("ai_phone_story_appearance_editor_v1_draft-a");
+  assert.ok(diskDraft, "Progress reaches IndexedDB rather than only component memory");
+  delete require.cache[require.resolve(path.join(root, "lib/kv-db.ts"))];
+  delete require.cache[require.resolve(path.join(root, "lib/story-appearance-editor-state.ts"))];
+  const freshKV = require(path.join(root, "lib/kv-db.ts"));
+  const freshState = require(path.join(root, "lib/story-appearance-editor-state.ts"));
+  await freshKV.hydrateKvDb();
+  assert.equal(freshState.loadStoryAppearanceEditorState("draft-a", base).draft.appearance.user.fontSize, 24);
+  assert.equal(freshState.loadStoryAppearanceEditorState("draft-a", base).scrollTop, 450);
+  console.log("✅ 剧情美化：气泡独立左/中/右、正文对称边距、头像独立布局、编辑对象/展开/滚动/草稿恢复、剧情隔离与外部更新保护；原透明度、手势与保存回归通过，无 API 调用");
 }
 main().then(() => process.exit(0)).catch(error => { console.error(error); process.exit(1); });
