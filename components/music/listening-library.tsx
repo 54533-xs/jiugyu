@@ -8,7 +8,9 @@ import { loadChatSessions, pushChatMessage } from "@/lib/chat-storage";
 import { loadCharacters } from "@/lib/character-storage";
 import { activateListeningSong } from "@/lib/listening-playback";
 import { resolveListeningSongCover } from "@/lib/listening-song-cover";
-import { getListeningRoom, inviteListeningRoom, inviteGroupListeningRoom } from "@/lib/listen-together";
+import { getListeningRoom, inviteListeningRoom, startDirectListeningRoom, inviteGroupListeningRoom } from "@/lib/listen-together";
+import { ListeningSongPicker } from "./listening-song-picker";
+import type { MusicTrack } from "@/lib/music-storage";
 import { createListeningPlaylist, editListeningPlaylist, deleteListeningPlaylist, listeningRanking, loadListeningLibrary, LISTENING_LIBRARY_EVENT, type SharedListeningSong } from "@/lib/listening-library";
 import { resolveUserIdentity } from "@/lib/settings-storage";
 import { ListeningAvatar, useListeningPresence } from "./listening-presence";
@@ -72,6 +74,7 @@ export default function ListeningLibrary({ sessionId, heroActions, heroSessionId
     const [name, setName] = useState("");
     const [notice, setNotice] = useState("");
     const [busy, setBusy] = useState(false);
+    const [songPickerSessionId, setSongPickerSessionId] = useState<string | null>(null);
     useEffect(() => { const update = () => refresh(n => n + 1); const events = [LISTENING_LIBRARY_EVENT, "settings-bindings-updated", "chat-sessions-updated"]; events.forEach(e => window.addEventListener(e, update)); return () => events.forEach(e => window.removeEventListener(e, update)); }, []);
     const chars = loadCharacters();
     const sessions = loadChatSessions().filter(s => !(s as any).isSpectator);
@@ -91,33 +94,65 @@ export default function ListeningLibrary({ sessionId, heroActions, heroSessionId
     const joined = hasListeningState && heroRoom?.userJoined !== false && (heroRoom?.isGroup ? presence.members.some(m => m.status === "joined") : heroRoom?.status === "joined");
     const partnerAvatar = roomSession?.isGroup ? (roomSession as any).groupAvatar : presence.avatar;
     const entry = useMemo(() => listeningEntryTiming(joined, heroRoom?.lastGlowAt), [joined, heroRoom?.id, heroRoom?.lastGlowAt, heroRoom?.glowEpoch]);
-    const invite = (id: string) => {
+    const handlePickTrackForSession = (track: MusicTrack, playUrl?: string) => {
+        const targetSessionId = songPickerSessionId;
+        setSongPickerSessionId(null);
+        if (player) {
+            if (!player.queue.some(t => t.id === track.id)) {
+                player.setQueue([track, ...player.queue]);
+            }
+            if (playUrl) {
+                player.playUrl(playUrl, track);
+            } else {
+                player.playTrack(track);
+            }
+        }
+        if (targetSessionId) {
+            setTimeout(() => {
+                invite(targetSessionId, track);
+            }, 80);
+        }
+    };
+
+    const invite = (id: string, customTrack?: MusicTrack) => {
         try {
-            const track = player?.currentTrack;
+            const track = customTrack || player?.currentTrack;
             if (!track) {
-                setNotice("请先选择一首歌播放，再发起一起听");
+                setSongPickerSessionId(id);
                 return;
             }
             const target = sessions.find(s => s.id === id);
             if (!target) return;
-            const invitation = target.isGroup ? inviteGroupListeningRoom(id) : inviteListeningRoom(id, target.contactId);
+            const invitation = target.isGroup
+                ? inviteGroupListeningRoom(id)
+                : startDirectListeningRoom(id, target.contactId, {
+                    title: track.title,
+                    artist: track.artist,
+                    coverUrl: track.coverUrl
+                });
             pushChatMessage({
                 sessionId: id,
                 role: "user",
-                content: "邀请你一起听歌。",
+                content: `邀请你一起听《${track.title}》。`,
                 mediaType: "listening_invite",
                 mediaData: {
                     listeningInvite: {
                         roomId: invitation.id,
                         initiator: "user",
+                        response: "accepted",
                         title: track.title,
                         artist: track.artist,
                         coverUrl: track.coverUrl
                     }
                 }
             });
+            pushChatMessage({
+                sessionId: id,
+                role: "system",
+                content: `你和${sessionName(id)}开始了一起听。`
+            });
             setInvitePicker(false);
-            setNotice("邀请已发送，可进入聊天提醒TA听");
+            setNotice("已开启一起听，播放中");
         } catch (e) { setNotice(e instanceof Error ? e.message : "邀请失败"); }
     };
     const act = (fn: () => void) => { try { fn(); setNotice(""); } catch (e) { setNotice(e instanceof Error ? e.message : "操作失败"); } };
@@ -173,5 +208,6 @@ export default function ListeningLibrary({ sessionId, heroActions, heroSessionId
             </article>{notice && <p role="status" className={styles.notice}>{notice}</p>}</div>, rootRef.current?.closest(".music-app") || rootRef.current!, p.id))}
         </>}
         {notice && <p role="status" className={styles.notice}>{notice}</p>}
+        {songPickerSessionId && <ListeningSongPicker onClose={() => setSongPickerSessionId(null)} onSelectTrack={handlePickTrackForSession} />}
     </section>;
 }

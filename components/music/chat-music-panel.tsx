@@ -8,6 +8,8 @@ import { ListeningDuet, ListeningDuration, useListeningPresence } from "./listen
 import { useMusicControlsOptional } from "@/lib/music-context";
 import { getListeningRoom, subscribeListeningRoom, joinGroupListeningAsUser } from "@/lib/listen-together";
 import styles from "./chat-music-panel.module.css";
+import { ListeningSongPicker } from "./listening-song-picker";
+import type { MusicTrack } from "@/lib/music-storage";
 
 const serverRoom = () => null;
 export function useListeningRoom() { return useSyncExternalStore(subscribeListeningRoom, getListeningRoom, serverRoom); }
@@ -74,13 +76,14 @@ export function ListeningStatus({ sessionId, name, avatar, onOpen }: { sessionId
     </div>;
 }
 
-type Props = { sessionId: string; characterId?: string; name: string; avatar?: string; busy: boolean; onClose: () => void; onInvite: () => void; onLeave: () => void; onRetry: () => void };
+type Props = { sessionId: string; characterId?: string; name: string; avatar?: string; busy: boolean; onClose: () => void; onInvite: (track?: MusicTrack) => void; onLeave: () => void; onRetry: () => void };
 export default function ChatMusicPanel({ sessionId, characterId, name, avatar, busy, onClose, onInvite, onLeave, onRetry }: Props) {
     const presence = useListeningPresence();
     const room = useListeningRoom();
     const mine = room?.sessionId === sessionId ? room : null;
     const player = useMusicControlsOptional();
     const [notice, setNotice] = useState("");
+    const [showPicker, setShowPicker] = useState(false);
     const root = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const node = root.current;
@@ -88,6 +91,25 @@ export default function ChatMusicPanel({ sessionId, characterId, name, avatar, b
         node?.focus();
         return () => { if (previous?.isConnected) previous.focus({ preventScroll: true }); };
     }, []);
+
+    const handlePickTrack = (track: MusicTrack, playUrl?: string) => {
+        setShowPicker(false);
+        if (player) {
+            if (!player.queue.some(t => t.id === track.id)) {
+                player.setQueue([track, ...player.queue]);
+            }
+            if (playUrl) {
+                player.playUrl(playUrl, track);
+            } else {
+                player.playTrack(track);
+            }
+        }
+        // 携曲极速直连一起听
+        setTimeout(() => {
+            try { onInvite(track); } catch { /* ignore */ }
+        }, 80);
+    };
+
     const controls = <div className={`${styles.accessory} music-hero-accessory`}>
         {<div className={`${styles.invitation} music-hero-invitation`}>
             <ListeningDuet userAvatar={presence.userAvatar} userName={presence.userName} avatar={mine ? presence.avatar : avatar} name={name} joined={mine?.status === "joined"} playing={!!player?.isPlaying} />
@@ -97,7 +119,12 @@ export default function ChatMusicPanel({ sessionId, characterId, name, avatar, b
                 <button type="button" onClick={onLeave} aria-label={mine.status === "joined" ? (mine.isGroup ? "退出一起听" : "结束一起听") : "取消邀请"}>{mine.status === "joined" ? "结束一起听" : "取消邀请"}</button>
             </> : <button type="button" disabled={busy || !!(room && room.status !== "declined")} onClick={() => {
                 setNotice("");
-                try { onInvite(); }
+                const track = player?.currentTrack;
+                if (!track?.title) {
+                    setShowPicker(true);
+                    return;
+                }
+                try { onInvite(track); }
                 catch (error) { setNotice(error instanceof Error ? error.message : "邀请失败，请重试"); }
             }}>{busy ? "正在回复" : "邀请"}</button>}
         </div>}
@@ -108,6 +135,7 @@ export default function ChatMusicPanel({ sessionId, characterId, name, avatar, b
         if (event.key === "Escape") { event.stopPropagation(); onClose(); }
     }}>
         <MusicApp onClose={onClose} headerAccessory={controls} initialTogether listeningSessionId={sessionId} />
+        {showPicker && <ListeningSongPicker onClose={() => setShowPicker(false)} onSelectTrack={handlePickTrack} />}
         {notice && <button type="button" className={styles.notice} onClick={() => setNotice("")} role="status">{notice}</button>}
     </div>;
 }

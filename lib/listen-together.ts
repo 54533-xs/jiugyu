@@ -138,6 +138,39 @@ export function inviteListeningRoom(sessionId: string, characterId: string): Lis
     emit(); return room;
 }
 
+export function startDirectListeningRoom(
+    sessionId: string,
+    characterId: string,
+    song?: { title?: string; artist?: string; coverUrl?: string }
+): ListeningRoom {
+    const current = getListeningRoom();
+    if (current && current.status !== "declined" && current.userJoined !== false && current.sessionId !== sessionId) {
+        throw new Error("请先结束当前的一起听");
+    }
+    if (current) endRoom(current);
+    room = {
+        id: createInvitationId(),
+        identityId: null,
+        sessionId,
+        characterId,
+        status: "joined",
+        initiator: "user",
+        userJoined: true,
+        startedAt: Date.now(),
+        glowEpoch: 1,
+        lastGlowAt: undefined,
+        song,
+    };
+    startRanks();
+    beginAccounting();
+    const bridge = getMusicControlBridge();
+    if (bridge && !bridge.getState().isPlaying && bridge.getState().currentTrack) {
+        bridge.resume();
+    }
+    emit();
+    return room;
+}
+
 export function leaveListeningRoom(sessionId: string) {
     if (getListeningRoom()?.sessionId !== sessionId) return;
     const current = room!;

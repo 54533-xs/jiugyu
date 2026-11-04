@@ -12,7 +12,7 @@ import { MessageBubble, MediaDetailModal, prewarmStickerCache, BilingualTextBloc
 import { GeneratedImageErrorDialog } from "./generated-image-error-dialog";
 import { PhotoInputModal, TextPhotoModal, VoiceRecordModal, RedPacketModal, LocationInputModal, SystemInstructionModal } from "./rich-input-modals";
 import ChatMusicPanel from "@/components/music/chat-music-panel";
-import { getListeningRoom, inviteListeningRoom, inviteGroupListeningRoom, leaveListeningRoom, applyListeningRoomReply } from "@/lib/listen-together";
+import { getListeningRoom, inviteListeningRoom, startDirectListeningRoom, inviteGroupListeningRoom, leaveListeningRoom, applyListeningRoomReply } from "@/lib/listen-together";
 import { EmojiPanel, StickerPanel } from "./emoji-panel";
 import { StickerSearchSuggest } from "./sticker-search-suggest";
 import { StateValuesPanel } from "./state-values-panel";
@@ -7301,37 +7301,45 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                     avatar={session.isGroup ? (session as any).groupAvatar : (resolveChatCharacterAvatar(character) || character?.avatar || undefined)}
                     busy={isGenerating}
                     onClose={() => setShowMusicPanel(false)}
-                    onInvite={() => {
-                        if (isGeneratingRef.current) {
-                            showChatToast("对方正在回复，请稍后邀请");
-                            return;
-                        }
+                    onInvite={(customTrack) => {
                         const snapshot = getMusicControlBridge()?.getState();
-                        const track = snapshot?.currentTrack;
+                        const track = customTrack || snapshot?.currentTrack;
                         if (!track?.title) {
                             showChatToast("请先选择一首歌播放，再发起一起听");
                             return;
                         }
                         try {
-                            const invitation = session.isGroup ? inviteGroupListeningRoom(session.id) : inviteListeningRoom(session.id, session.contactId);
+                            const invitation = session.isGroup
+                                ? inviteGroupListeningRoom(session.id)
+                                : startDirectListeningRoom(session.id, session.contactId, {
+                                    title: track.title,
+                                    artist: track.artist,
+                                    coverUrl: track.coverUrl,
+                                });
                             pushChatMessage({
                                 sessionId: session.id,
                                 role: "user",
-                                content: "邀请你一起听歌。",
+                                content: `邀请你一起听《${track.title}》。`,
                                 mediaType: "listening_invite",
                                 mediaData: {
                                     listeningInvite: {
                                         roomId: invitation.id,
                                         initiator: "user",
+                                        response: "accepted",
                                         title: track.title,
                                         artist: track.artist,
                                         coverUrl: track.coverUrl,
                                     }
                                 }
                             });
+                            pushChatMessage({
+                                sessionId: session.id,
+                                role: "system",
+                                content: `你和${session.isGroup ? (session as any).groupName || "大家" : character?.name || "对方"}开始了一起听。`
+                            });
                             setMessages(loadChatMessages(session.id));
                             setShowMusicPanel(false);
-                            showChatToast("邀请已发送，可点击卡片提醒TA听");
+                            showChatToast("已开启一起听，播放中");
                         } catch (error) {
                             leaveListeningRoom(session.id);
                             throw error;
