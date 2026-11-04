@@ -26,45 +26,14 @@ function normalizeStoredMusicApiBaseUrl(baseUrl: string | undefined): string {
     return isDefaultNeteaseApiBase(normalized) ? DEFAULT_NETEASE_API_BASE : normalized;
 }
 
-/** 自动同步用户在「虚拟」App 等自定义应用中保存的网易云 API 地址与登录 Cookie */
-function trySyncFromCustomAppAccount(): { cookie?: string; apiBase?: string } | null {
-    if (typeof window === "undefined") return null;
-    try {
-        const keys = kvKeysWithPrefix("ai_phone_custom_app_data_v1:");
-        const accountKey = keys.find(k => k.endsWith(":netease_account"));
-        if (!accountKey) return null;
-        const raw = kvGet(accountKey);
-        if (!raw) return null;
-        const list = JSON.parse(raw);
-        if (Array.isArray(list) && list[0]) {
-            return {
-                cookie: list[0].cookie || undefined,
-                apiBase: list[0].apiBase || undefined,
-            };
-        }
-    } catch { /* ignore */ }
-    return null;
-}
-
 export function loadMusicApiConfig(): MusicApiConfig {
     if (typeof window === "undefined") return { baseUrl: DEFAULT_NETEASE_API_BASE, enabled: true, version: MUSIC_API_CONFIG_VERSION };
     try {
         const raw = kvGet(MUSIC_API_KEY);
         if (raw) {
             const parsed = JSON.parse(raw) as Partial<MusicApiConfig>;
-            if (parsed.baseUrl?.trim()) {
-                return {
-                    baseUrl: normalizeStoredMusicApiBaseUrl(parsed.baseUrl),
-                    enabled: true,
-                    version: MUSIC_API_CONFIG_VERSION,
-                };
-            }
-        }
-        // 如果系统音乐未配置 API，自动借用「虚拟」App 中已配置并经过验证的 API 地址
-        const synced = trySyncFromCustomAppAccount();
-        if (synced?.apiBase) {
             return {
-                baseUrl: normalizeStoredMusicApiBaseUrl(synced.apiBase),
+                baseUrl: normalizeStoredMusicApiBaseUrl(parsed.baseUrl),
                 enabled: true,
                 version: MUSIC_API_CONFIG_VERSION,
             };
@@ -96,17 +65,7 @@ export function saveNeteaseCookie(cookie: string): void {
 
 export function loadNeteaseCookie(): string {
     if (typeof window === "undefined") return "";
-    try {
-        const stored = kvGet(NETEASE_COOKIE_KEY);
-        if (stored) return stored;
-        // 自动互通：从「虚拟」App 自动同步已登录的网易云 VIP Cookie！
-        const synced = trySyncFromCustomAppAccount();
-        if (synced?.cookie) {
-            saveNeteaseCookie(synced.cookie);
-            return synced.cookie;
-        }
-        return "";
-    } catch { return ""; }
+    try { return kvGet(NETEASE_COOKIE_KEY) || ""; } catch { return ""; }
 }
 
 export function clearNeteaseCookie(): void {
@@ -120,11 +79,13 @@ function withNeteaseParams(url: string): string {
         const parsed = new URL(url);
         if (!parsed.searchParams.has("realIP")) parsed.searchParams.set("realIP", NETEASE_REAL_IP);
         if (cookie && !parsed.searchParams.has("cookie")) parsed.searchParams.set("cookie", cookie);
+        if (!parsed.searchParams.has("timestamp")) parsed.searchParams.set("timestamp", String(Date.now()));
         return parsed.toString();
     } catch {
         const params: string[] = [];
         if (!/[?&]realIP=/.test(url)) params.push(`realIP=${encodeURIComponent(NETEASE_REAL_IP)}`);
         if (cookie && !/[?&]cookie=/.test(url)) params.push(`cookie=${encodeURIComponent(cookie)}`);
+        if (!/[?&]timestamp=/.test(url)) params.push(`timestamp=${Date.now()}`);
         if (params.length === 0) return url;
         return `${url}${url.includes("?") ? "&" : "?"}${params.join("&")}`;
     }
