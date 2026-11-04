@@ -15,14 +15,14 @@ export function useListeningPresence() {
     const character = room ? characters.find(c => c.id === room.characterId) : null;
     const session = room ? loadChatSessions().find(s => s.id === room.sessionId) : null;
     const user = resolveUserIdentity(character?.id);
-    const members = room?.isGroup ? (room.members || []).map(m => { const c = characters.find(c => c.id === m.characterId); return { ...m, name: c?.name || "群成员", avatar: c?.avatarUrl }; }) : [];
+    const members = room?.isGroup ? (room.members || []).map(m => { const c = characters.find(c => c.id === m.characterId); return { ...m, name: c?.name || "群成员", avatar: c?.chatAvatar || c?.avatar }; }) : [];
     return {
         members,
         room: room?.status === "declined" ? null : room,
         name: room?.isGroup ? (session as any)?.groupName || "群聊" : (session as any)?.alias || character?.name || "对方",
-        avatar: room?.isGroup ? (session as any)?.groupAvatar : character?.avatarUrl,
+        avatar: room?.isGroup ? (session as any)?.groupAvatar : (character?.chatAvatar || character?.avatar),
         userName: user?.name || "你",
-        userAvatar: (user as any)?.avatarUrl || null
+        userAvatar: user?.avatar || null
     };
 }
 

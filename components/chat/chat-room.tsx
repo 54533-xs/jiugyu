@@ -13,6 +13,7 @@ import { GeneratedImageErrorDialog } from "./generated-image-error-dialog";
 import { PhotoInputModal, TextPhotoModal, VoiceRecordModal, RedPacketModal, LocationInputModal, SystemInstructionModal } from "./rich-input-modals";
 import ChatMusicPanel, { ListeningStatus } from "@/components/music/chat-music-panel";
 import { getListeningRoom, inviteListeningRoom, inviteGroupListeningRoom, leaveListeningRoom, applyListeningRoomReply } from "@/lib/listen-together";
+import { waitForListeningInviteDraft } from "@/lib/listening-invite-reply";
 import { EmojiPanel, StickerPanel } from "./emoji-panel";
 import { StickerSearchSuggest } from "./sticker-search-suggest";
 import { StateValuesPanel } from "./state-values-panel";
@@ -4098,7 +4099,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                 clearGenerationLock(session.id);
             }
         }
-        if (shouldRunDeclineReply) await triggerReply();
+        if (shouldRunDeclineReply) await triggerAIResponse();
     };
 
     // 收起键盘（或关掉表情/加号面板）并安静 N 秒后自动触发回复，
@@ -7294,22 +7295,53 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                     sessionId={session.id}
                     characterId={session.contactId}
                     name={session.isGroup ? (session as any).groupName || "群聊" : character?.name || "对方"}
-                    avatar={session.isGroup ? (session as any).groupAvatar : character?.avatarUrl}
+                    avatar={session.isGroup ? (session as any).groupAvatar : (resolveChatCharacterAvatar(character) || character?.avatar || undefined)}
                     busy={isGenerating}
                     onClose={() => setShowMusicPanel(false)}
                     onInvite={() => {
-                        if (session.isGroup) inviteGroupListeningRoom(session.id);
-                        else inviteListeningRoom(session.id, session.contactId);
-                        pushChatMessage({
-                            sessionId: session.id, role: "user", content: "邀请一起听歌。",
-                            mediaType: "listening_invite",
-                            mediaData: { listeningInvite: { roomId: getListeningRoom()?.id, initiator: "user" } }
-                        });
-                        window.dispatchEvent(new CustomEvent("chat-messages-updated", { detail: { sessionId: session.id } }));
-                        triggerReply();
+                        if (isGeneratingRef.current) {
+                            showChatToast("对方正在回复，请稍后邀请");
+                            return;
+                        }
+                        try {
+                            const invitation = session.isGroup ? inviteGroupListeningRoom(session.id) : inviteListeningRoom(session.id, session.contactId);
+                            const snapshot = getMusicControlBridge()?.getState();
+                            const track = snapshot?.currentTrack;
+                            pushChatMessage({
+                                sessionId: session.id,
+                                role: "user",
+                                content: "邀请你一起听歌。",
+                                mediaType: "listening_invite",
+                                mediaData: {
+                                    listeningInvite: {
+                                        roomId: invitation.id,
+                                        initiator: "user",
+                                        title: track?.title,
+                                        artist: track?.artist,
+                                        coverUrl: track?.coverUrl,
+                                    }
+                                }
+                            });
+                            setMessages(loadChatMessages(session.id));
+                            waitForListeningInviteDraft(wrapperRef.current, () => {
+                                if (getListeningRoom()?.id !== invitation.id || getListeningRoom()?.status !== "invited" || isGeneratingRef.current) return;
+                                const history = loadChatMessages(session.id);
+                                const invitationIndex = history.findIndex(m => m.role === "user" && m.mediaData?.listeningInvite?.roomId === invitation.id);
+                                if (invitationIndex < 0 || history.slice(invitationIndex + 1).some(m => m.role === "assistant")) return;
+                                if (history.filter(m => m.role === "user").at(-1)?.mediaData?.listeningInvite?.roomId !== invitation.id) return;
+                                window.dispatchEvent(new CustomEvent(CHAT_REQUEST_REPLY_EVENT, { detail: { sessionId: session.id } }));
+                            });
+                        } catch (error) {
+                            leaveListeningRoom(session.id);
+                            throw error;
+                        }
                     }}
-                    onLeave={() => leaveListeningRoom(session.id)}
-                    onRetry={() => triggerReply()}
+                    onLeave={() => {
+                        leaveListeningRoom(session.id);
+                        pushChatMessage({ sessionId: session.id, role: "system", content: session.isGroup ? "用户退出了一起听或取消了邀请。" : "用户结束了一起听或取消了邀请。" });
+                        setMessages(loadChatMessages(session.id));
+                    }}
+                    onRetry={() => { if (!isGeneratingRef.current) void triggerAIResponse(); }}
                 />
             )}
 
