@@ -11,6 +11,8 @@ import { translateReasoningText } from "@/lib/reasoning-translate";
 import { MessageBubble, MediaDetailModal, prewarmStickerCache, BilingualTextBlock, isStandaloneHtmlPreviewContent, normalizeTextBubbleContent } from "./message-bubble";
 import { GeneratedImageErrorDialog } from "./generated-image-error-dialog";
 import { PhotoInputModal, TextPhotoModal, VoiceRecordModal, RedPacketModal, LocationInputModal, SystemInstructionModal } from "./rich-input-modals";
+import ChatMusicPanel, { ListeningStatus } from "@/components/music/chat-music-panel";
+import { getListeningRoom, inviteListeningRoom, inviteGroupListeningRoom, leaveListeningRoom, applyListeningRoomReply } from "@/lib/listen-together";
 import { EmojiPanel, StickerPanel } from "./emoji-panel";
 import { StickerSearchSuggest } from "./sticker-search-suggest";
 import { StateValuesPanel } from "./state-values-panel";
@@ -211,6 +213,7 @@ const CHAT_VISUAL_MEDIA_TYPES = new Set([
     "image",
     "location",
     "music_share",
+    "listening_invite",
     "xiaohongshu_note_share",
     "app_card",
     "audio",
@@ -259,6 +262,7 @@ const CHAT_MEDIA_BUBBLE_TYPES = new Set([
     "image",
     "location",
     "music_share",
+    "listening_invite",
     "xiaohongshu_note_share",
     "app_card",
     "media_file",
@@ -762,6 +766,7 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>, label: "红包", onClick: () => onOpenRichModal("red_packet") },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><text x="12" y="16" textAnchor="middle" fontSize="12" fill="var(--c-text)" stroke="none">¥</text></svg>, label: "转账", onClick: () => onOpenRichModal(isGroup ? "transfer_target" : "transfer") },
         { icon: <Gift size={22} strokeWidth={1.5} color="var(--c-text)" />, label: "礼物", onClick: () => onOpenRichModal("gift") },
+        { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6" /><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" /></svg>, label: "一起听", onClick: () => onOpenRichModal("listening" as any) },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>, label: "位置", onClick: () => onOpenRichModal("location") },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" /><line x1="8" y1="22" x2="16" y2="22" /></svg>, label: "语音条", onClick: () => onOpenRichModal("voice_msg") },
         ...customPlusActions.map(action => ({
@@ -1121,6 +1126,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
         const chars = loadCharacters();
         return chars.find(c => c.id === session.contactId) || null;
     });
+    const [showMusicPanel, setShowMusicPanel] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
     const [theaterMode, setTheaterMode] = useState(() => kvGet(CHAT_THEATER_MODE_PREFIX + session.id) === "1");
@@ -2500,7 +2506,8 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
             if (!(session.participantIds || []).includes(r.characterId)) continue;
             if (isGroupMuted(session, r.characterId)) continue;
             const responseBatchId = createResponseBatchId();
-            const { parts: rawParts, stateValues, freshStateValues, statusPanel, innerMonologue } = parseAIResponse(r.responseText, getCurrentStateForCharacter(r.characterId));
+            const groupResponseText = applyListeningRoomReply(r.responseText, session.id, r.characterId, responseBatchId);
+            const { parts: rawParts, stateValues, freshStateValues, statusPanel, innerMonologue } = parseAIResponse(groupResponseText, getCurrentStateForCharacter(r.characterId));
             const parts = stripInvalidStickerParts(rawParts, r.characterId);
             let attachedState = false;
             let savedAnyPart = false;
@@ -2937,7 +2944,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
         const forcedStory = forcedStoryEnabled
             ? extractForcedStoryTrigger(aiResponseText)
             : { text: aiResponseText, description: undefined };
-        aiResponseText = forcedStory.text;
+        aiResponseText = applyListeningRoomReply(forcedStory.text, session.id, session.contactId, responseBatchId);
         const rawResponseText = options?.rawResponseText
             ? extractForcedStoryTrigger(options.rawResponseText).text
             : aiResponseText;
@@ -6701,7 +6708,14 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
 	                onTogglePlusMenu={() => { setShowPlusMenu(!showPlusMenu); setShowEmojiPanel(false); setShowStickerPanel(false); }}
 	                onToggleTheaterMode={toggleTheaterMode}
 	                onCloseTheaterMode={closeTheaterMode}
-	                onOpenRichModal={(modal) => { setShowPlusMenu(false); setRichModal(modal); }}
+	                onOpenRichModal={(modal) => {
+                            setShowPlusMenu(false);
+                            if ((modal as string) === "listening") {
+                                setShowMusicPanel(true);
+                                return;
+                            }
+                            setRichModal(modal);
+                        }}
                 onOpenCustomPlusAction={handleOpenCustomPlusAction}
                 onStartVideoCall={() => { cancelFollowUp(session.id); setShowPlusMenu(false); setCallInitiator("user"); setShowVideoCall(true); }}
                 onStartVoiceCall={() => { cancelFollowUp(session.id); setShowPlusMenu(false); setCallInitiator("user"); setShowVoiceCall(true); }}
@@ -7266,6 +7280,37 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                     onEnd={() => returnFromCall(() => setShowVideoCall(false))}
                 />,
                 wrapperRef.current.parentElement,
+            )}
+
+            <ListeningStatus
+                sessionId={session.id}
+                name={session.isGroup ? (session as any).groupName || "群聊" : character?.name || "对方"}
+                avatar={session.isGroup ? (session as any).groupAvatar : character?.avatarUrl}
+                onOpen={() => setShowMusicPanel(true)}
+            />
+
+            {showMusicPanel && (
+                <ChatMusicPanel
+                    sessionId={session.id}
+                    characterId={session.contactId}
+                    name={session.isGroup ? (session as any).groupName || "群聊" : character?.name || "对方"}
+                    avatar={session.isGroup ? (session as any).groupAvatar : character?.avatarUrl}
+                    busy={isGenerating}
+                    onClose={() => setShowMusicPanel(false)}
+                    onInvite={() => {
+                        if (session.isGroup) inviteGroupListeningRoom(session.id);
+                        else inviteListeningRoom(session.id, session.contactId);
+                        pushChatMessage({
+                            sessionId: session.id, role: "user", content: "邀请一起听歌。",
+                            mediaType: "listening_invite",
+                            mediaData: { listeningInvite: { roomId: getListeningRoom()?.id, initiator: "user" } }
+                        });
+                        window.dispatchEvent(new CustomEvent("chat-messages-updated", { detail: { sessionId: session.id } }));
+                        triggerReply();
+                    }}
+                    onLeave={() => leaveListeningRoom(session.id)}
+                    onRetry={() => triggerReply()}
+                />
             )}
 
         </div >
