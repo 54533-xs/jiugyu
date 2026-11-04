@@ -31,7 +31,11 @@ import {
     MUSIC_BG_EVENT, type MusicBgConfig, type MusicPlayerBgMode,
 } from "@/lib/music-bg";
 import ListeningLibrary from "./listening-library";
-import { ChevronLeft, ChevronRight, Settings, Headphones, Search, Music } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Headphones, Search, Music, Sun, Moon, Monitor } from "lucide-react";
+import {
+    loadMusicThemeMode, saveMusicThemeMode, resolveMusicTheme,
+    MUSIC_THEME_EVENT, type MusicThemeMode, type ResolvedMusicTheme,
+} from "@/lib/music-theme";
 import privateStyles from "./music-private.module.css";
 import { MUSIC_HOME_EVENT, consumeMusicHomeRequest } from "@/lib/music-navigation";
 
@@ -56,12 +60,47 @@ export default function MusicApp({ onClose, headerAccessory, initialTogether = f
     const musicToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const musicLoadingFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [bgCfg, setBgCfg] = useState<MusicBgConfig>(() => loadMusicBg());
+    const [themeMode, setThemeMode] = useState<MusicThemeMode>(() => loadMusicThemeMode());
+    const [resolvedTheme, setResolvedTheme] = useState<ResolvedMusicTheme>(() => resolveMusicTheme(loadMusicThemeMode()));
     const player = useMusicControls();
 
     useEffect(() => {
         const handleBgChange = () => setBgCfg(loadMusicBg());
         window.addEventListener(MUSIC_BG_EVENT, handleBgChange);
         return () => window.removeEventListener(MUSIC_BG_EVENT, handleBgChange);
+    }, []);
+
+    useEffect(() => {
+        const updateTheme = () => {
+            const mode = loadMusicThemeMode();
+            setThemeMode(mode);
+            setResolvedTheme(resolveMusicTheme(mode));
+        };
+        const media = window.matchMedia("(prefers-color-scheme: dark)");
+        const handleMedia = () => {
+            if (loadMusicThemeMode() === "auto") {
+                setResolvedTheme(media.matches ? "dark" : "light");
+            }
+        };
+        window.addEventListener(MUSIC_THEME_EVENT, updateTheme);
+        media.addEventListener("change", handleMedia);
+        return () => {
+            window.removeEventListener(MUSIC_THEME_EVENT, updateTheme);
+            media.removeEventListener("change", handleMedia);
+        };
+    }, []);
+
+    const handleToggleTheme = useCallback(() => {
+        const next: MusicThemeMode = resolvedTheme === "light" ? "dark" : "light";
+        saveMusicThemeMode(next);
+        setThemeMode(next);
+        setResolvedTheme(next);
+    }, [resolvedTheme]);
+
+    const handleThemeModeChange = useCallback((mode: MusicThemeMode) => {
+        saveMusicThemeMode(mode);
+        setThemeMode(mode);
+        setResolvedTheme(resolveMusicTheme(mode));
     }, []);
 
     // kv cache hydrates asynchronously — re-read the custom background until settled
@@ -293,7 +332,13 @@ export default function MusicApp({ onClose, headerAccessory, initialTogether = f
     };
 
     return (
-        <div className={`music-app ${privateStyles.app}`} style={appBgStyle(bgCfg)} {...(player.currentTrack ? { "data-nowbar": "" } : {})}>
+        <div
+            className={`music-app ${privateStyles.app}`}
+            data-theme={resolvedTheme}
+            data-music-theme={resolvedTheme}
+            style={appBgStyle(bgCfg)}
+            {...(player.currentTrack ? { "data-nowbar": "" } : {})}
+        >
             {customCss && <SessionCustomCSS css={customCss} scope=".music-app" />}
             {musicToast && (
                 <div className="music-toast-overlay">
@@ -316,20 +361,24 @@ export default function MusicApp({ onClose, headerAccessory, initialTogether = f
                         if (dailyView) { setDailyView(null); }
                         else if (activePlaylist) { setActivePlaylist(null); }
                         else { onClose(); }
-                    }} title="返回">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="15 18 9 12 15 6" />
-                        </svg>
+                    }} title="返回" aria-label="返回">
+                        <ChevronLeft size={24} strokeWidth={1.5} />
                     </button>
                 </div>
                 <div className="music-header-title">
                     {dailyView ? "每日推荐" : activePlaylist && tab === "recommend" ? "歌单详情" : tab === "recommend" ? "发现" : tab === "search" ? "搜索" : tab === "mine" ? "我的" : tab === "together" ? "一起听" : "本地音乐"}
                 </div>
-                <div className="music-header-right">
-                    <button className="music-header-action" onClick={() => setShowSettings(true)} title="设置">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                        </svg>
+                <div className="music-header-right" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                    <button
+                        className="music-header-action"
+                        onClick={handleToggleTheme}
+                        title={resolvedTheme === "light" ? "切换至夜间模式" : "切换至日间模式"}
+                        aria-label={resolvedTheme === "light" ? "切换至夜间模式" : "切换至日间模式"}
+                    >
+                        {resolvedTheme === "light" ? <Moon size={20} strokeWidth={1.5} /> : <Sun size={20} strokeWidth={1.5} />}
+                    </button>
+                    <button className="music-header-action" onClick={() => setShowSettings(true)} title="设置" aria-label="设置">
+                        <Settings size={20} strokeWidth={1.5} />
                     </button>
                 </div>
             </div>
@@ -488,7 +537,12 @@ export default function MusicApp({ onClose, headerAccessory, initialTogether = f
             {showSettings && (
                 <div className="music-settings-modal-overlay" onClick={() => setShowSettings(false)}>
                     <div className="music-settings-modal-dialog" onClick={(e) => e.stopPropagation()}>
-                        <MusicSettingsTab onBack={() => setShowSettings(false)} onSaved={onSettingsSaved} />
+                        <MusicSettingsTab
+                            onBack={() => setShowSettings(false)}
+                            onSaved={onSettingsSaved}
+                            themeMode={themeMode}
+                            onThemeModeChange={handleThemeModeChange}
+                        />
                     </div>
                 </div>
             )}
@@ -1496,7 +1550,14 @@ function PlaylistsTab({ player, formatTime, onPlayNetease, onPlayAll, activePlay
 }
 
 // ── Settings Tab ──
-function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: () => void }) {
+function MusicSettingsTab({
+    onBack, onSaved, themeMode, onThemeModeChange
+}: {
+    onBack: () => void;
+    onSaved: () => void;
+    themeMode: MusicThemeMode;
+    onThemeModeChange: (mode: MusicThemeMode) => void;
+}) {
     const [config, setConfig] = useState<MusicApiConfig>(() => loadMusicApiConfig());
     const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
     const [testing, setTesting] = useState(false);
@@ -1665,6 +1726,46 @@ function MusicSettingsTab({ onBack, onSaved }: { onBack: () => void; onSaved: ()
             </div>
 
             <div className="music-settings-body">
+                <div className="music-settings-section">
+                    <div className="music-settings-label">外观主题</div>
+                    <div className="music-settings-hint">切换日间或夜间视觉风格，也可以跟随系统自动切换</div>
+                    <div className="music-theme-segment" role="radiogroup" aria-label="外观主题">
+                        <button
+                            type="button"
+                            className="music-theme-btn"
+                            data-active={themeMode === "light"}
+                            onClick={() => onThemeModeChange("light")}
+                            aria-checked={themeMode === "light"}
+                            role="radio"
+                        >
+                            <Sun size={15} strokeWidth={1.8} aria-hidden="true" />
+                            <span>日间</span>
+                        </button>
+                        <button
+                            type="button"
+                            className="music-theme-btn"
+                            data-active={themeMode === "dark"}
+                            onClick={() => onThemeModeChange("dark")}
+                            aria-checked={themeMode === "dark"}
+                            role="radio"
+                        >
+                            <Moon size={15} strokeWidth={1.8} aria-hidden="true" />
+                            <span>夜间</span>
+                        </button>
+                        <button
+                            type="button"
+                            className="music-theme-btn"
+                            data-active={themeMode === "auto"}
+                            onClick={() => onThemeModeChange("auto")}
+                            aria-checked={themeMode === "auto"}
+                            role="radio"
+                        >
+                            <Monitor size={15} strokeWidth={1.8} aria-hidden="true" />
+                            <span>跟随系统</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div className="music-settings-section">
                     <div className="music-settings-label">网易云 API 地址</div>
                     <div className="music-settings-hint">默认使用公共服务，也可以改成自己的 NeteaseCloudMusicApi 地址</div>

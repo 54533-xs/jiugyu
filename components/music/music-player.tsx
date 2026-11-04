@@ -26,6 +26,9 @@ import { ListeningPlayerPresence, useListeningPresence } from "./listening-prese
 import MusicCommentsPage from "./music-comments";
 import MusicArtistPage from "./music-artist";
 import { loadMusicBg, playerBgStyle, MUSIC_BG_EVENT, type MusicBgConfig } from "@/lib/music-bg";
+import {
+    loadMusicThemeMode, resolveMusicTheme, MUSIC_THEME_EVENT, type ResolvedMusicTheme,
+} from "@/lib/music-theme";
 
 const PLAY_MODE_ICONS: Record<PlayMode, { svg: string; label: string }> = {
     sequence: {
@@ -80,6 +83,25 @@ export default function MusicPlayer() {
     const [artistView, setArtistView] = useState<{ id: number; name: string } | null>(null);
     const [palette, setPalette] = useState<CoverPalette>(DEFAULT_COVER_PALETTE);
     const [bgCfg, setBgCfg] = useState<MusicBgConfig>(() => loadMusicBg());
+    const [resolvedTheme, setResolvedTheme] = useState<ResolvedMusicTheme>(() => resolveMusicTheme(loadMusicThemeMode()));
+
+    useEffect(() => {
+        const updateTheme = () => {
+            setResolvedTheme(resolveMusicTheme(loadMusicThemeMode()));
+        };
+        const media = window.matchMedia("(prefers-color-scheme: dark)");
+        const handleMedia = () => {
+            if (loadMusicThemeMode() === "auto") {
+                setResolvedTheme(media.matches ? "dark" : "light");
+            }
+        };
+        window.addEventListener(MUSIC_THEME_EVENT, updateTheme);
+        media.addEventListener("change", handleMedia);
+        return () => {
+            window.removeEventListener(MUSIC_THEME_EVENT, updateTheme);
+            media.removeEventListener("change", handleMedia);
+        };
+    }, []);
     const [commentTotal, setCommentTotal] = useState(0);
 
     useEffect(() => {
@@ -441,7 +463,7 @@ export default function MusicPlayer() {
     } as React.CSSProperties;
 
     return (
-        <div className={`music-player mp-lumen mp-apple ${privateStyles.player}`} style={ambientVars} data-view={view}>
+        <div className={`music-player mp-lumen mp-apple ${privateStyles.player}`} data-theme={resolvedTheme} style={ambientVars} data-view={view}>
             {musicToast && (
                 <div className="music-toast-overlay">
                     <div className="music-toast-chip">

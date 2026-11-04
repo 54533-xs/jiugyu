@@ -5362,3 +5362,70 @@
   }
 }
 
+/* ── Music Theme: Day / Night Controls & Light Mode Refinements ── */
+.music-theme-segment {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: var(--c-music-surface);
+  border: 1px solid var(--c-music-surface-solid);
+  border-radius: 16px;
+  margin-top: 8px;
+}
+.music-theme-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--c-music-accent);
+  font-size: calc(12.5px * var(--app-text-scale, 1));
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.music-theme-btn[data-active="true"] {
+  background: var(--c-music-panel);
+  color: var(--c-music-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.music-theme-btn:active {
+  transform: scale(0.97);
+}
+
+/* Light mode specific fine-tuning */
+.music-app[data-theme="light"] {
+  color-scheme: light;
+}
+.music-app[data-theme="light"] .music-tabbar {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 #ffffff;
+}
+.music-app[data-theme="light"] .music-tabbar::before {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.music-app[data-theme="light"] .music-now-bar {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 #ffffff;
+}
+.music-player[data-theme="light"] {
+  color-scheme: light;
+  --mp-sheet: rgba(255, 255, 255, 0.94);
+  --mp-frost: rgba(255, 255, 255, 0.75);
+  --mp-frost-border: rgba(0, 0, 0, 0.08);
+  --mp-slider-track: rgba(0, 0, 0, 0.08);
+  --mp-slider-fill: var(--c-music-text);
+  background-color: var(--c-music-bg);
+}
+
