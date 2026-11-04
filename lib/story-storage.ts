@@ -394,6 +394,10 @@ export type StoryCharacterSettings = {
   minChars?: number;
   maxChars?: number;
   userPerspective?: "second" | "third" | "username";
+  /** 引导在剧情正文中适量生成角色心理描写；缺省关闭，沿用原预设。 */
+  innerThoughtGenerationEnabled?: boolean;
+  /** 引导在剧情正文中使用 Markdown 加粗突出重点；缺省关闭。 */
+  emphasisGenerationEnabled?: boolean;
   proseStyle?: string;
   proseStylePrompt?: string;
   /** 当前角色启用的文风方案（存于公用方案仓库），仅保存选择。 */

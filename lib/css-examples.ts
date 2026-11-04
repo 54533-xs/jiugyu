@@ -1246,6 +1246,7 @@ textAlign 取 justify 或 center，textIndent 取 0 或 2em，对应四种段落
   --story-assistant-textColor: #334155;
   --story-assistant-dialogueColor: #64748b;
   --story-assistant-boldColor: #1e293b;
+  --story-assistant-italicColor: #64748b;
   --story-assistant-lineHeight: 1.8;
   --story-assistant-paragraphGap: 12px;
   --story-assistant-avatarGap: 10px;
@@ -1263,6 +1264,7 @@ textAlign 取 justify 或 center，textIndent 取 0 或 2em，对应四种段落
   --story-user-textColor: #334155;
   --story-user-dialogueColor: #64748b;
   --story-user-boldColor: #1e293b;
+  --story-user-italicColor: #64748b;
   --story-user-lineHeight: 1.8;
   --story-user-paragraphGap: 12px;
   --story-user-avatarGap: 10px;
@@ -1410,7 +1412,8 @@ button[data-story-action="beautify"] { transform: translate(0px, 0px); }
 .story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p { text-indent: var(--story-current-textIndent,0); text-align: var(--story-current-textAlign,justify); }
 .story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p .story-br-indent { width: var(--story-current-textIndent,0); }
 .story-richtext em,
-.story-richtext i { color: #64748b; }
+.story-richtext i,
+.story-richtext .story-thought { color: #64748b; }
 .story-richtext strong,
 .story-richtext b { color: #1e293b; }
 .story-richtext .story-dialogue { color: #64748b; }

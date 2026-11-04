@@ -82,7 +82,7 @@ export function StoryAppearanceEditor({ sessionId, initialPrefs, initialCSS, use
   useEffect(() => { saveProgress(); }, [role, barsOpen, cssOpen, prefs.appearance, saveProgress]);
   const rootRef = useRef<HTMLDivElement>(null);
   const fileRequest = useRef(0);
-  const [palette, setPalette] = useState({ backgroundColor: "#ffffff", textColor: "#334155", dialogueColor: "#334155", boldColor: "#1e293b" });
+  const [palette, setPalette] = useState({ backgroundColor: "#ffffff", textColor: "#334155", dialogueColor: "#334155", boldColor: "#1e293b", italicColor: "#334155" });
   const panelVisible = isStoryReadingPanelVisible(prefs);
   const displayRole = role === "both" ? "user" : role;
   const chrome = normalizeStoryChromeAppearance(prefs.chrome);
@@ -115,7 +115,7 @@ export function StoryAppearanceEditor({ sessionId, initialPrefs, initialCSS, use
       };
       const text = get(displayRole === "user" ? "--c-story-text-user" : "--c-story-text", get("--c-story-text", "#334155"));
       setPalette({ backgroundColor: get(displayRole === "user" ? "--c-story-bubble-user" : "--c-story-bubble-bg", "#ffffff"),
-        textColor: text, dialogueColor: text, boldColor: get("--c-story-heading", "#1e293b") });
+        textColor: text, dialogueColor: text, italicColor: text, boldColor: get("--c-story-heading", "#1e293b") });
     });
     return () => cancelAnimationFrame(frame);
   }, [prefs.theme, displayRole]);
@@ -132,7 +132,7 @@ export function StoryAppearanceEditor({ sessionId, initialPrefs, initialCSS, use
     reader.readAsDataURL(file);
   };
 
-  const colorSetting = (key: "backgroundColor" | "textColor" | "dialogueColor" | "boldColor", label: string) => <div className="story-beautify-color" key={key}>
+  const colorSetting = (key: "backgroundColor" | "textColor" | "dialogueColor" | "boldColor" | "italicColor", label: string) => <div className="story-beautify-color" key={key}>
     <label><span>{label}</span><input type="color" aria-label={label} value={appearance[key] || palette[key]} onChange={event => patch({ [key]: event.target.value })} /></label>
     {(appearance[key] || (role === "both" && prefs.appearance?.assistant?.[key])) ? <button type="button" onClick={() => patch({ [key]: undefined })}>跟随主题</button> : <small>跟随主题</small>}
   </div>;
@@ -199,6 +199,7 @@ export function StoryAppearanceEditor({ sessionId, initialPrefs, initialCSS, use
         {colorSetting("textColor", "默认文字颜色")}
         {colorSetting("dialogueColor", "「」内文字颜色")}
         {colorSetting("boldColor", "加粗文字颜色")}
+        {colorSetting("italicColor", "斜体／心声文字颜色")}
         <RangeSetting label="行间距" value={appearance.lineHeight} min={1.2} max={2.6} step={0.02} unit="倍" onChange={value => patch({ lineHeight: value })} />
         <label className="story-beautify-preset"><span>段落排版</span><select aria-label="段落排版" value={appearance.paragraphMode} onChange={event => patch({ paragraphMode: event.target.value as StoryBubbleAppearance["paragraphMode"] })}>
           <option value="default">默认</option><option value="indent">首行缩进</option><option value="center">全部居中</option><option value="indent-center">首行缩进＋居中</option>
@@ -236,7 +237,7 @@ export function StoryAppearanceEditor({ sessionId, initialPrefs, initialCSS, use
             {(["user", "assistant"] as const).map(speaker => <article key={speaker} className="story-row" data-role={speaker} {...storyMessageAppearanceAttributes(prefs, speaker)}>
               <div className="story-msg-head"><div className="story-avatar-wrap"><Avatar size="md" name={speaker === "user" ? userName : characterName} src={speaker === "user" ? userAvatar : characterAvatar} /></div>
                 <div className="story-msg-meta"><span className="story-msg-name">{speaker === "user" ? userName : characterName}</span><span className="story-msg-time" data-story-timestamp="">12:30</span></div></div>
-              <div className="story-bubble-wrap"><div className="story-bubble"><StoryHtmlRenderer colorDialogue={!panelVisible} messageId={`beauty-preview-${speaker}`} content={speaker === "user" ? "我抬起头望向你。\n\n「今天一起走走吧。」\n\n**这句话很重要。**" : "我停下脚步，笑着回应。\n\n「好，我陪你。」\n\n**我记住了你的邀请。**"} /></div></div>
+              <div className="story-bubble-wrap"><div className="story-bubble"><StoryHtmlRenderer colorDialogue={!panelVisible} messageId={`beauty-preview-${speaker}`} content={speaker === "user" ? "我抬起头望向你。\n\n「今天一起走走吧。」\n\n**这句话很重要。**\n\n*我也有些期待这次散步。*" : "我停下脚步，笑着回应。\n\n「好，我陪你。」\n\n**我记住了你的邀请。**\n\n*他悄悄期待着与你同行。*"} /></div></div>
             </article>)}
           </div>
           <div className="story-composer story-beautify-preview-composer" aria-hidden="true"><button type="button" tabIndex={-1} data-story-action="continue" className="story-continue-btn">续写</button><textarea tabIndex={-1} readOnly rows={1} value="输入消息…" /><button type="button" tabIndex={-1} data-story-action="send" data-state="idle" className="story-send-btn">↑</button></div>

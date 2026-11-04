@@ -41,6 +41,8 @@ async function main() {
   assert.match(vars["--story-user-background"], /25%/); assert.ok(!("opacity" in vars), "Transparency must affect the bubble background only");
 
   const defaults = appearance.normalizeStoryBubbleAppearance({});
+  assert.equal(appearance.normalizeStoryBubbleAppearance({ italicColor: "red; color: pink" }).italicColor, undefined);
+  assert.equal(appearance.storyAppearanceStyle({})["--story-user-italicColor"], "var(--story-user-textColor)");
   assert.equal(defaults.avatarGap, 10); assert.equal(defaults.showTimestamp, true); assert.equal(defaults.paragraphMode, "default");
   assert.equal(appearance.normalizeStoryBubbleAppearance({ avatarGap: -8, paragraphMode: "bad" }).avatarGap, 0);
   assert.equal(appearance.normalizeStoryBubbleAppearance({ avatarGap: 999 }).avatarGap, 64);
@@ -147,7 +149,9 @@ async function main() {
   await click(button("保留"));
   assert.equal(container.querySelectorAll(".story-beautify-preview .story-dialogue").length, 0);
   await click(button("去掉"));
+  assert.equal(container.querySelectorAll(".story-beautify-preview em.story-thought").length, 2);
   await change(input("字体大小"), "21"); await change(input("默认文字颜色"), "#123456");
+  await change(input("斜体／心声文字颜色"), "#112233");
   await change(input("背景透明度"), "75"); await change(input("头像大小"), "60");
   assert.equal(input("段落排版").querySelectorAll("option").length, 4);
   await change(input("头像与气泡间距"), "26"); await change(input("显示消息时间"), false); await change(input("段落排版"), "indent");
@@ -157,6 +161,8 @@ async function main() {
   assert.equal(input("字体大小").getAttribute("value"), "14");
   assert.equal(input("头像与气泡间距").getAttribute("value"), "10"); assert.equal(input("显示消息时间").checked, true);
   assert.equal(input("段落排版").value, "default"); await change(input("段落排版"), "center");
+  assert.notEqual(input("斜体／心声文字颜色").value, "#112233", "Role colors stay independent");
+  await change(input("斜体／心声文字颜色"), "#445566");
   await change(input("「」内文字颜色"), "#abcdef"); await change(input("加粗文字颜色"), "#fedcba");
   await change(input("头像形状"), "circle"); await change(input("字体大小"), "16");
   await change(input("主题预设"), "night");
@@ -170,6 +176,7 @@ async function main() {
   assert.equal(stored.appearance.user.fontSize, 21); assert.equal(stored.appearance.user.backgroundOpacity, 25);
   assert.equal(stored.appearance.assistant.fontSize, 16); assert.equal(stored.appearance.assistant.dialogueColor, "#abcdef");
   assert.equal(stored.appearance.assistant.boldColor, "#fedcba"); assert.equal(stored.appearance.assistant.avatarShape, "circle");
+  assert.equal(stored.appearance.user.italicColor, "#112233"); assert.equal(stored.appearance.assistant.italicColor, "#445566");
   assert.equal(stored.appearance.user.avatarGap, 26); assert.equal(stored.appearance.user.showTimestamp, false);
   assert.equal(stored.appearance.user.paragraphMode, "indent"); assert.equal(stored.appearance.assistant.paragraphMode, "center");
   assert.equal(stored.theme, "night"); assert.equal(stored.voiceEnabled, true);
@@ -179,6 +186,7 @@ async function main() {
   const quoteRow = input("「」内文字颜色").closest(".story-beautify-color");
   assert.ok(quoteRow.querySelector("button"), "Together mode can reset a color customized only on the character");
   await change(input("字体大小"), "19"); await change(input("内边距"), "18");
+  await change(input("斜体／心声文字颜色"), "#789abc");
   await change(input("默认文字颜色"), "#778899"); await change(input("消息间距"), "32");
   await change(input("头像位置"), "center");
   await change(input("气泡位置"), "center");
@@ -190,7 +198,7 @@ async function main() {
   await click(button("保存并应用"));
   for (const role of ["user", "assistant"]) {
     assert.equal(stored.appearance[role].fontSize, 19); assert.equal(stored.appearance[role].padding, 18);
-    assert.equal(stored.appearance[role].textColor, "#778899");
+    assert.equal(stored.appearance[role].textColor, "#778899"); assert.equal(stored.appearance[role].italicColor, "#789abc");
     assert.equal(stored.appearance[role].bubblePosition, "center"); assert.equal(stored.appearance[role].maxWidth, 70);
     assert.equal(stored.appearance[role].avatarGap, 18); assert.equal(stored.appearance[role].showTimestamp, false); assert.equal(stored.appearance[role].paragraphMode, "indent-center");
   }
@@ -213,6 +221,7 @@ async function main() {
   assert.equal(container.querySelector(".story-beautify-css").hasAttribute("open"), true);
   assert.equal(container.querySelector(".story-beautify-page > main").scrollTop, 321);
   assert.equal(input("字体大小").getAttribute("value"), "19");
+  assert.equal(input("斜体／心声文字颜色").value, "#789abc");
   assert.equal(input("头像位置").value, "center");
   assert.equal(input("头像与气泡间距").getAttribute("value"), "18"); assert.equal(input("显示消息时间").checked, false); assert.equal(input("段落排版").value, "indent-center");
   const previewTimestamp = container.querySelector('.story-beautify-preview [data-role="user"] [data-story-timestamp]');
@@ -247,6 +256,7 @@ async function main() {
   assert.equal(stored.wallpaper, wallpaper, "Wallpaper applies as soon as it is read");
   await click(button("清除壁纸")); assert.equal(stored.wallpaper, undefined);
   await chooseFile(); await act(async () => { readers[2].result = wallpaper; readers[2].onload(); });
+  await change(input("斜体／心声文字颜色"), "#aabbcc");
   await change(input("字体大小"), "25"); await change(input("头像与气泡间距"), "22");
   await change(input("显示消息时间"), false); await change(input("段落排版"), "center");
   await click(container.querySelector('[aria-label="关闭美化"]')); assert.ok(closed);
@@ -257,10 +267,13 @@ async function main() {
   assert.equal(stored.appearance.user, undefined, "Retaining a draft must not apply it to the actual story");
   assert.equal(stored.appearance.assistant, undefined);
   assert.ok(editorState.loadStoryAppearanceEditorState(sessionId, stored.appearance).draft);
+  assert.equal(input("斜体／心声文字颜色").value, "#aabbcc");
   assert.equal(input("头像与气泡间距").getAttribute("value"), "22"); assert.equal(input("显示消息时间").checked, false); assert.equal(input("段落排版").value, "center");
   const cssInput = input("剧情自定义 CSS");
   const cssProps = cssInput[Object.keys(cssInput).find(key => key.startsWith("__reactProps$"))];
-  assert.match(cssInput.value, /letter-spacing/, JSON.stringify({ storedCSS, rendered: cssProps.value, html: cssInput.outerHTML }));
+  // linkedom does not reliably reflect React 19 controlled textarea values after remount.
+  assert.match(storedCSS, /letter-spacing/);
+  assert.equal(cssProps.value, storedCSS, "Reopened CSS editor receives the saved value");
   await click(button("重置基础美化"));
   assert.equal(stored.appearance.messageGap, 32, "Reset remains a draft until Apply");
   await click(button("保存并应用")); assert.equal(stored.appearance, undefined);
@@ -352,6 +365,12 @@ async function main() {
   assert.deepEqual(declarations(fixture.querySelector("[data-story-timestamp]"), "display"), ["var(--story-current-timeDisplay,inline)"]);
   assert.deepEqual(declarations(fixture.querySelector(".story-generating-head"), "display"), [], "Turning off timestamps never hides generation status");
   assert.ok(source.includes('className="story-msg-time" data-story-timestamp="">{formatStoryTime(message.createdAt)}'));
+  const colorFixture = document.createElement("div");
+  colorFixture.innerHTML = '<div class="story-free-layout"><div class="story-bubble"><div class="story-richtext"><em class="story-thought">心声</em><i>旧斜体</i><strong>重点<em class="story-thought">粗斜体</em></strong><span class="story-accent">旧强调</span></div></div></div>';
+  assert.equal(declarations(colorFixture.querySelector("em"), "color").at(-1), "var(--story-current-italicColor)");
+  assert.equal(declarations(colorFixture.querySelector("i"), "color").at(-1), "var(--story-current-italicColor)");
+  assert.equal(declarations(colorFixture.querySelector("strong em"), "color").at(-1), "var(--story-current-boldColor)");
+  assert.equal(declarations(colorFixture.querySelector(".story-accent"), "color").at(-1), "var(--story-current-boldColor)");
   const callsBeforeClose = settingsPatches.length;
   await chooseFile(); await act(async () => renderer.unmount());
   await act(async () => { readers[3].result = "late"; readers[3].onload(); });
@@ -375,6 +394,6 @@ async function main() {
   await freshKV.hydrateKvDb();
   assert.equal(freshState.loadStoryAppearanceEditorState("draft-a", base).draft.appearance.user.fontSize, 24);
   assert.equal(freshState.loadStoryAppearanceEditorState("draft-a", base).scrollTop, 450);
-  console.log("✅ 剧情美化：头像气泡间距、时间开关跟随整组、四种段落排版、独立/双方设置及草稿保存恢复；折叠内容和生成状态保护，既有布局/手势回归通过，无 API 调用");
+  console.log("✅ 剧情美化：斜体/心声独立与双方颜色、旧格式及粗斜体优先级、保存恢复与草稿；原排版、时间、间距和手势回归通过，无 API 调用");
 }
 main().then(() => process.exit(0)).catch(error => { console.error(error); process.exit(1); });

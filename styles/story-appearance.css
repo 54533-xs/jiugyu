@@ -17,6 +17,7 @@
   --story-current-textColor: var(--story-user-textColor);
   --story-current-dialogueColor: var(--story-user-dialogueColor);
   --story-current-boldColor: var(--story-user-boldColor);
+  --story-current-italicColor: var(--story-user-italicColor);
   --story-current-lineHeight: var(--story-user-lineHeight);
   --story-current-paragraphGap: var(--story-user-paragraphGap);
   --story-current-avatarSize: var(--story-user-avatarSize);
@@ -36,6 +37,7 @@
   --story-current-textColor: var(--story-assistant-textColor);
   --story-current-dialogueColor: var(--story-assistant-dialogueColor);
   --story-current-boldColor: var(--story-assistant-boldColor);
+  --story-current-italicColor: var(--story-assistant-italicColor);
   --story-current-lineHeight: var(--story-assistant-lineHeight);
   --story-current-paragraphGap: var(--story-assistant-paragraphGap);
   --story-current-avatarSize: var(--story-assistant-avatarSize);
@@ -63,10 +65,11 @@
 .story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p .story-br-indent { width: var(--story-current-textIndent,0); }
 .story-free-layout .story-bubble .story-richtext p:first-child { margin-top: 0; }
 .story-free-layout .story-bubble .story-richtext p:last-child { margin-bottom: 0; }
-.story-free-layout .story-bubble .story-richtext :is(em,i) { color: inherit; }
+.story-free-layout .story-bubble .story-richtext :is(em,i,.story-thought),
+.story-free-layout .story-bubble .story-richtext :is(em,i,.story-thought) :is(.story-dialogue,.story-voice-segment) { color: var(--story-current-italicColor); }
 .story-free-layout .story-bubble .story-richtext :is(.story-dialogue,.story-voice-segment) { color: var(--story-current-dialogueColor); }
 .story-free-layout .story-bubble .story-richtext :is(strong,b,.story-accent),
-.story-free-layout .story-bubble .story-richtext :is(strong,b,.story-accent) .story-dialogue { color: var(--story-current-boldColor); }
+.story-free-layout .story-bubble .story-richtext :is(strong,b,.story-accent) :is(.story-dialogue,.story-voice-segment,em,i,.story-thought) { color: var(--story-current-boldColor); }
 .story-free-layout > .story-row:is([data-role="user"],[data-role="assistant"]) .story-avatar-wrap { width: var(--story-current-avatarSize); flex-basis: var(--story-current-avatarSize); }
 .story-free-layout > .story-row:is([data-role="user"],[data-role="assistant"]) .story-avatar-wrap .ui-avatar {
   width: var(--story-current-avatarSize) !important; height: var(--story-current-avatarSize) !important;
