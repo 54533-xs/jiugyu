@@ -377,7 +377,7 @@ export default function MusicApp({ onClose, headerAccessory, initialTogether = f
                 <div className="music-header-title">
                     {dailyView ? "每日推荐" : activePlaylist && tab === "recommend" ? "歌单详情" : tab === "recommend" ? "发现" : tab === "search" ? "搜索" : tab === "mine" ? "我的" : tab === "together" ? "一起听" : "本地音乐"}
                 </div>
-                <div className="music-header-right" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <div className="music-header-right" style={{ display: "flex", gap: "8px", alignItems: "center", justifySelf: "end" }}>
                     <button
                         className="music-header-action"
                         onClick={handleToggleTheme}
@@ -493,12 +493,6 @@ export default function MusicApp({ onClose, headerAccessory, initialTogether = f
             <div className="music-bottom-dock">
             {player.currentTrack && (
                 <div className="music-now-bar" onClick={player.openFullPlayer}>
-                    <div className="music-birds">
-                        <img src="/birds/小鸟1.png" className="music-bird bird-1" alt="bird" />
-                        <img src="/birds/小鸟2.png" className="music-bird bird-2" alt="bird" />
-                        <img src="/birds/小鸟3.png" className="music-bird bird-3" alt="bird" />
-                        <img src="/birds/小鸟4.png" className="music-bird bird-4" alt="bird" />
-                    </div>
                     <div className="music-now-bar-cover" {...(player.isPlaying ? { "data-playing": "" } : {})}>
                         {player.currentTrack.coverUrl ? (
                             <img src={player.currentTrack.coverUrl} alt="" />
