@@ -31,10 +31,10 @@ import {
     MUSIC_BG_EVENT, type MusicBgConfig, type MusicPlayerBgMode,
 } from "@/lib/music-bg";
 
-type Props = { onClose: () => void };
+type Props = { onClose: () => void; headerAccessory?: ReactNode; initialTogether?: boolean; listeningSessionId?: string };
 type TabId = "recommend" | "mine" | "search" | "local";
 
-export default function MusicApp({ onClose }: Props) {
+export default function MusicApp({ onClose, headerAccessory }: Props) {
     const [tracks, setTracks] = useState<MusicTrack[]>([]);
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState<TabId>("local");
@@ -294,6 +294,7 @@ export default function MusicApp({ onClose }: Props) {
             )}
 
             {/* Header */}
+            {headerAccessory}
             <div className="music-header">
                 <div className="music-header-left">
                     <button className="music-header-action" onClick={() => {

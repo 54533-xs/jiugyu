@@ -17,6 +17,11 @@ import {
 import MusicCommentsPage from "./music-comments";
 import MusicArtistPage from "./music-artist";
 import { loadMusicBg, playerBgStyle, MUSIC_BG_EVENT, type MusicBgConfig } from "@/lib/music-bg";
+import { ListeningPlayerPresence } from "./listening-presence";
+import ShareDestinationSheet from "@/components/chat/share-destination-sheet";
+import type { ChatSharePayload } from "@/lib/chat-share";
+import { createMusicListeningContext } from "@/lib/music-listening";
+import { getMusicControlBridge } from "@/lib/music-control-bridge";
 
 const PLAY_MODE_ICONS: Record<PlayMode, { svg: string; label: string }> = {
     sequence: {
@@ -71,6 +76,7 @@ export default function MusicPlayer() {
     const [palette, setPalette] = useState<CoverPalette>(DEFAULT_COVER_PALETTE);
     const [bgCfg, setBgCfg] = useState<MusicBgConfig>(() => loadMusicBg());
     const [commentTotal, setCommentTotal] = useState(0);
+    const [shareLyricPayload, setShareLyricPayload] = useState<ChatSharePayload | null>(null);
 
     useEffect(() => {
         const handleBgChange = () => setBgCfg(loadMusicBg());
@@ -328,9 +334,16 @@ export default function MusicPlayer() {
 
     const openShareViaChat = useCallback(() => {
         if (!player.currentTrack) return;
-        window.dispatchEvent(new CustomEvent("open-mini-chat", {
-            detail: { share: { type: "music", title: player.currentTrack.title, artist: player.currentTrack.artist } },
-        }));
+        const bridge = getMusicControlBridge();
+        const snapshot = bridge?.getState();
+        const listeningContext = snapshot ? createMusicListeningContext(snapshot, null, new Date().toISOString()) : undefined;
+        setShareLyricPayload({
+            type: "music",
+            title: player.currentTrack.title,
+            artist: player.currentTrack.artist,
+            coverUrl: player.currentTrack.coverUrl,
+            listeningContext,
+        });
     }, [player.currentTrack]);
 
     const openMiniChat = useCallback(() => {
@@ -458,6 +471,7 @@ export default function MusicPlayer() {
                         {track.artist || "未知歌手"}
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="m9 5 7 7-7 7" /></svg>
                     </button>
+                    <ListeningPlayerPresence />
                 </div>
                 <div className="mp-top-actions">
                     <button className="music-player-ctrl-btn mp-top-btn" onClick={togglePlayerStyle} title={playerStyle === "vinyl" ? "切换现代样式" : "切换黑胶样式"}>
@@ -493,6 +507,21 @@ export default function MusicPlayer() {
                                             className="mp-lyric-line"
                                             {...(i === activeLyricIdx ? { "data-active": "" } : dist === 1 ? { "data-near": "" } : {})}
                                             onClick={(e) => handleLyricClick(i, e)}
+                                            onContextMenu={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                if (!player.currentTrack || !line.text) return;
+                                                const bridge = getMusicControlBridge();
+                                                const snapshot = bridge?.getState();
+                                                const listeningContext = snapshot ? createMusicListeningContext(snapshot, null, new Date().toISOString(), line) : undefined;
+                                                setShareLyricPayload({
+                                                    type: "music",
+                                                    title: player.currentTrack.title,
+                                                    artist: player.currentTrack.artist,
+                                                    coverUrl: player.currentTrack.coverUrl,
+                                                    listeningContext,
+                                                });
+                                            }}
                                         >
                                             {line.text || " "}
                                         </div>
@@ -752,6 +781,17 @@ export default function MusicPlayer() {
                 <div className={`music-toast ${addResult.ok ? "music-toast-ok" : "music-toast-err"}`}>
                     {addResult.ok ? "✓ " : "✗ "}{addResult.message}
                 </div>
+            )}
+
+            {shareLyricPayload && (
+                <ShareDestinationSheet
+                    payload={shareLyricPayload}
+                    onClose={() => setShareLyricPayload(null)}
+                    onView={() => {
+                        setShareLyricPayload(null);
+                        player.closeFullPlayer();
+                    }}
+                />
             )}
 
         </div>

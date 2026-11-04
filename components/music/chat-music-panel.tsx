@@ -107,7 +107,7 @@ export default function ChatMusicPanel({ sessionId, characterId, name, avatar, b
     return <div ref={root} className={styles.panel} onPointerDown={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="音乐与一起听" tabIndex={-1} onKeyDown={event => {
         if (event.key === "Escape") { event.stopPropagation(); onClose(); }
     }}>
-        <MusicApp onClose={onClose} />
+        <MusicApp onClose={onClose} headerAccessory={controls} initialTogether listeningSessionId={sessionId} />
         {notice && <button type="button" className={styles.notice} onClick={() => setNotice("")} role="status">{notice}</button>}
     </div>;
 }
