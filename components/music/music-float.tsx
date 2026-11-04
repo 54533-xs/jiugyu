@@ -183,10 +183,10 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerCancel}
         >
-            {together && <ListeningPlanets presence={presence} playing={player.isPlaying} />}
             <div className="music-float-inner">
                 {/* Cover art */}
                 <div className="music-float-cover-wrap" {...(player.isPlaying ? { "data-playing": "" } : {})}>
+                    {together && <ListeningPlanets presence={presence} playing={player.isPlaying} />}
                     <div className="music-float-vinyl-groove music-float-vinyl-groove-1" />
                     <div className="music-float-vinyl-groove music-float-vinyl-groove-2" />
                     <div className="music-float-vinyl-center">
@@ -206,7 +206,6 @@ export default function MusicFloat({ hidden }: { hidden?: boolean }) {
                 <div className="music-float-info">
                     <div className="music-float-title">{track.title}</div>
                     <div className="music-float-artist">{track.artist}</div>
-                    {together && <div className="music-float-together">和{presence.name}一起听</div>}
                 </div>
 
                 {/* Compact Controls */}
