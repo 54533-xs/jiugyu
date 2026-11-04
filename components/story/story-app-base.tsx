@@ -49,6 +49,7 @@ function MiniPhoneIcon({ size = 18 }: { size?: number }) {
   );
 }
 import { StoryAppearanceEditor } from "./story-appearance-editor";
+import { useStoryInputDraft } from "./use-story-input-draft";
 import { StoryAppearanceVariables } from "./story-appearance-variables";
 import { isStoryReadingPanelVisible, storyStageAppearanceClass, storyChromeAttributes, storyMessageAppearanceAttributes, type StoryAppearancePrefs } from "@/lib/story-appearance";
 import { Avatar } from "@/components/ui/primitives";
@@ -254,6 +255,7 @@ function resizeStoryComposerTextarea(el: HTMLTextAreaElement) {
 type StoryComposerAppendRequest = {
   id: number;
   text: string;
+  sessionId: string;
 };
 
 const STORY_GENERATION_STATUS = ["整理场景", "续写剧情", "打磨对白", "写入故事"];
@@ -305,8 +307,10 @@ function StoryGeneratingIndicator({
 }
 
 const StoryComposer = memo(function StoryComposer({
+  sessionId,
   isGenerating,
   appendRequest,
+  onAppendConsumed,
   voiceEnabled,
   voicePlaying,
   voiceProgress,
@@ -324,8 +328,10 @@ const StoryComposer = memo(function StoryComposer({
   quickInputOptions,
   quickInputCursor,
 }: {
+  sessionId: string;
   isGenerating: boolean;
   appendRequest: StoryComposerAppendRequest | null;
+  onAppendConsumed: (id: number) => void;
   voiceEnabled: boolean;
   voicePlaying: boolean;
   voiceProgress: { current: number; total: number };
@@ -343,10 +349,13 @@ const StoryComposer = memo(function StoryComposer({
   quickInputOptions: string[];
   quickInputCursor: "left" | "middle" | "right";
 }) {
-  const [draft, setDraft] = useState("");
+  const { draft, setDraft, flush } = useStoryInputDraft(sessionId);
   const [quickPanelOpen, setQuickPanelOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastAppendIdRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (textareaRef.current) resizeStoryComposerTextarea(textareaRef.current);
+  }, []);
   // 记录输入框最近一次选区/光标：点快捷选项时按钮会抢走焦点，
   // 这时 selectionStart 已经不可靠，用这个 ref 兜底
   const lastSelectionRef = useRef<{ start: number; end: number } | null>(null);
@@ -379,16 +388,17 @@ const StoryComposer = memo(function StoryComposer({
   };
 
   useEffect(() => {
-    if (!appendRequest || appendRequest.id === lastAppendIdRef.current) return;
+    if (!appendRequest || appendRequest.sessionId !== sessionId || appendRequest.id === lastAppendIdRef.current) return;
     lastAppendIdRef.current = appendRequest.id;
     setDraft(prev => prev + appendRequest.text);
+    onAppendConsumed(appendRequest.id);
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
       if (!textarea) return;
       resizeStoryComposerTextarea(textarea);
       textarea.focus();
     });
-  }, [appendRequest]);
+  }, [appendRequest, onAppendConsumed, sessionId, setDraft]);
 
   const submit = () => {
     if (isGenerating) {
@@ -492,6 +502,7 @@ const StoryComposer = memo(function StoryComposer({
         rows={1}
         value={draft}
         onFocus={(event) => { resizeStoryComposerTextarea(event.currentTarget); rememberSelection(event.currentTarget); }}
+        onBlur={flush}
         onSelect={(event) => rememberSelection(event.currentTarget)}
         onKeyUp={(event) => rememberSelection(event.currentTarget)}
         onChange={(event) => {
@@ -1198,7 +1209,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
 
   const handleOptionSelect = useCallback((text: string) => {
     composerAppendIdRef.current += 1;
-    setComposerAppendRequest({ id: composerAppendIdRef.current, text });
+    setComposerAppendRequest({ id: composerAppendIdRef.current, text, sessionId: activeSessionIdRef.current });
   }, []);
 
   // Close context menu when clicking outside (delay to avoid the opening tap closing it)
@@ -2628,8 +2639,10 @@ export function StoryApp({ onClose }: StoryAppProps) {
           </button>
         </div>
       ) : <StoryComposer
+        key={activeSessionId} sessionId={activeSessionId}
         isGenerating={isGenerating}
         appendRequest={composerAppendRequest}
+        onAppendConsumed={id => setComposerAppendRequest(current => current?.id === id ? null : current)}
         voiceEnabled={Boolean(uiPrefs.voiceEnabled)}
         voicePlaying={Boolean(playingVoiceSegmentId)}
         voiceProgress={voiceSequenceProgress}

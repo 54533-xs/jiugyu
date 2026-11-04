@@ -493,6 +493,8 @@ type ChatRoomProps = {
     onDeleted?: () => void;
     /** Embedded callers can observe user-sent rich messages without duplicating chat logic. */
     onUserMessageSent?: (message: ChatMessage) => void;
+    contactCallRequest?: { id: string; type: "voice" | "video" };
+    onContactCallHandled?: () => void;
 };
 
 type OfflineActionTarget = {
@@ -1113,7 +1115,7 @@ const OfflineTextInputBar = memo(forwardRef<OfflineTextInputHandle, {
     );
 }));
 
-export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: ChatRoomProps) {
+export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contactCallRequest, onContactCallHandled }: ChatRoomProps) {
     const [liveCSS, setLiveCSS] = useState(session.customCSS || "");
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [transientMessages, setTransientMessages] = useState<ChatMessage[]>([]);
@@ -1165,6 +1167,15 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
     const [callMinimized, setCallMinimized] = useState(false);
     const [callInitiator, setCallInitiator] = useState<"user" | "character">("user");
     const [callInitiatorName, setCallInitiatorName] = useState<string>("");
+    const handledContactCall = useRef<string | null>(null);
+    useEffect(() => {
+        if (!contactCallRequest || handledContactCall.current === contactCallRequest.id) return;
+        handledContactCall.current = contactCallRequest.id;
+        cancelFollowUp(session.id);
+        setShowPlusMenu(false); setCallInitiator("user");
+        if (contactCallRequest.type === "voice") setShowVoiceCall(true); else setShowVideoCall(true);
+        onContactCallHandled?.();
+    }, [contactCallRequest, onContactCallHandled, session.id]);
     const [userIdentity, setUserIdentity] = useState<UserIdentity | null>(null);
     const [enterToSendEnabled, setEnterToSendEnabled] = useState(() => loadChatAppSettings().enterToSendEnabled === true);
     const [storyEntryEnabled, setStoryEntryEnabled] = useState(() => loadChatAppSettings().storyAsOfflineMode === true);
