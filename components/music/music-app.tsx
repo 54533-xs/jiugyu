@@ -197,6 +197,15 @@ export default function MusicApp({ onClose, headerAccessory, initialTogether = f
         clearMusicToast();
     }, [clearMusicToast, pendingPlayTrackId, player.currentTrack?.id]);
 
+    useEffect(() => {
+        const handlePlaybackFailed = (e: Event) => {
+            const customEvent = e as CustomEvent<{ message?: string }>;
+            showMusicToast(customEvent.detail?.message || "音频加载失败", 3000);
+        };
+        window.addEventListener("music-playback-failed", handlePlaybackFailed);
+        return () => window.removeEventListener("music-playback-failed", handlePlaybackFailed);
+    }, [showMusicToast]);
+
     useEffect(() => () => {
         if (musicToastTimerRef.current) clearTimeout(musicToastTimerRef.current);
         if (musicLoadingFallbackRef.current) clearTimeout(musicLoadingFallbackRef.current);

@@ -133,6 +133,14 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         });
         audio.addEventListener("pause", () => setIsPlaying(false));
         audio.addEventListener("play", () => setIsPlaying(true));
+        audio.addEventListener("error", () => {
+            setIsPlaying(false);
+            setCurrentTime(0);
+            setDuration(0);
+            window.dispatchEvent(new CustomEvent("music-playback-failed", {
+                detail: { message: "音频加载失败，可能是 VIP 歌曲或版权限制" }
+            }));
+        });
 
         return () => {
             audio.pause();
