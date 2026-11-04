@@ -40,6 +40,17 @@ async function main() {
   assert.equal(vars["--story-user-fontSize"], "21px"); assert.equal(vars["--story-assistant-fontSize"], "16px");
   assert.match(vars["--story-user-background"], /25%/); assert.ok(!("opacity" in vars), "Transparency must affect the bubble background only");
 
+  const defaults = appearance.normalizeStoryBubbleAppearance({});
+  assert.equal(defaults.avatarGap, 10); assert.equal(defaults.showTimestamp, true); assert.equal(defaults.paragraphMode, "default");
+  assert.equal(appearance.normalizeStoryBubbleAppearance({ avatarGap: -8, paragraphMode: "bad" }).avatarGap, 0);
+  assert.equal(appearance.normalizeStoryBubbleAppearance({ avatarGap: 999 }).avatarGap, 64);
+  assert.equal(appearance.normalizeStoryBubbleAppearance({ paragraphMode: "bad" }).paragraphMode, "default");
+  for (const [mode, align, indent] of [["default", "justify", "0"], ["indent", "justify", "2em"], ["center", "center", "0"], ["indent-center", "center", "2em"]]) {
+    const result = appearance.storyAppearanceStyle({ appearance: { user: { paragraphMode: mode, showTimestamp: false, avatarGap: 24 } } });
+    assert.equal(result["--story-user-textAlign"], align); assert.equal(result["--story-user-textIndent"], indent);
+    assert.equal(result["--story-user-avatarGap"], "24px"); assert.equal(result["--story-user-timeDisplay"], "none");
+    assert.equal(result["--story-assistant-timeDisplay"], "inline");
+  }
   const fragment = document.createElement("div");
   fragment.innerHTML = '<p title="「属性不动」">正文「你好<strong>重要</strong>，再见」普通。</p><p>「未闭合</p><p>下一段</p><pre>「代码」</pre><span class="story-voice-segment">「原语音」<button>播放</button></span>';
   decorateStoryDialogue(fragment);
@@ -138,10 +149,14 @@ async function main() {
   await click(button("去掉"));
   await change(input("字体大小"), "21"); await change(input("默认文字颜色"), "#123456");
   await change(input("背景透明度"), "75"); await change(input("头像大小"), "60");
+  assert.equal(input("段落排版").querySelectorAll("option").length, 4);
+  await change(input("头像与气泡间距"), "26"); await change(input("显示消息时间"), false); await change(input("段落排版"), "indent");
   assert.equal(stored.appearance, undefined, "Basic edits are only previewed before Apply");
   assert.equal(container.querySelector('[data-role="user"]').closest(".story-beautify-preview").style.getPropertyValue("--story-user-fontSize"), "21px");
   await click(button("角色"));
   assert.equal(input("字体大小").getAttribute("value"), "14");
+  assert.equal(input("头像与气泡间距").getAttribute("value"), "10"); assert.equal(input("显示消息时间").checked, true);
+  assert.equal(input("段落排版").value, "default"); await change(input("段落排版"), "center");
   await change(input("「」内文字颜色"), "#abcdef"); await change(input("加粗文字颜色"), "#fedcba");
   await change(input("头像形状"), "circle"); await change(input("字体大小"), "16");
   await change(input("主题预设"), "night");
@@ -155,6 +170,8 @@ async function main() {
   assert.equal(stored.appearance.user.fontSize, 21); assert.equal(stored.appearance.user.backgroundOpacity, 25);
   assert.equal(stored.appearance.assistant.fontSize, 16); assert.equal(stored.appearance.assistant.dialogueColor, "#abcdef");
   assert.equal(stored.appearance.assistant.boldColor, "#fedcba"); assert.equal(stored.appearance.assistant.avatarShape, "circle");
+  assert.equal(stored.appearance.user.avatarGap, 26); assert.equal(stored.appearance.user.showTimestamp, false);
+  assert.equal(stored.appearance.user.paragraphMode, "indent"); assert.equal(stored.appearance.assistant.paragraphMode, "center");
   assert.equal(stored.theme, "night"); assert.equal(stored.voiceEnabled, true);
   assert.deepEqual(original, { theme: "paper", voiceEnabled: true });
   await click(button("一起设置"));
@@ -166,6 +183,7 @@ async function main() {
   await change(input("头像位置"), "center");
   await change(input("气泡位置"), "center");
   await change(input("气泡最大宽度"), "70");
+  await change(input("头像与气泡间距"), "18"); await change(input("显示消息时间"), false); await change(input("段落排版"), "indent-center");
   assert.equal(container.querySelectorAll('.story-beautify-preview .story-row[data-story-avatar-layout="center"]').length, 2);
   assert.ok(container.querySelector('.story-beautify-preview .story-row .story-msg-meta .story-msg-time'), "Centered preview includes time below the avatar");
   assert.equal(stored.appearance.user.fontSize, 21, "Together edits also need Apply");
@@ -174,6 +192,7 @@ async function main() {
     assert.equal(stored.appearance[role].fontSize, 19); assert.equal(stored.appearance[role].padding, 18);
     assert.equal(stored.appearance[role].textColor, "#778899");
     assert.equal(stored.appearance[role].bubblePosition, "center"); assert.equal(stored.appearance[role].maxWidth, 70);
+    assert.equal(stored.appearance[role].avatarGap, 18); assert.equal(stored.appearance[role].showTimestamp, false); assert.equal(stored.appearance[role].paragraphMode, "indent-center");
   }
   assert.equal(stored.appearance.assistant.dialogueColor, "#abcdef", "Together edits preserve untouched per-role differences");
   assert.equal(stored.appearance.user.backgroundOpacity, 25); assert.equal(stored.appearance.messageGap, 32);
@@ -195,6 +214,9 @@ async function main() {
   assert.equal(container.querySelector(".story-beautify-page > main").scrollTop, 321);
   assert.equal(input("字体大小").getAttribute("value"), "19");
   assert.equal(input("头像位置").value, "center");
+  assert.equal(input("头像与气泡间距").getAttribute("value"), "18"); assert.equal(input("显示消息时间").checked, false); assert.equal(input("段落排版").value, "indent-center");
+  const previewTimestamp = container.querySelector('.story-beautify-preview [data-role="user"] [data-story-timestamp]');
+  assert.ok(previewTimestamp.closest(".story-msg-meta").closest(".story-msg-head").querySelector(".story-avatar-wrap"), "Time remains in the avatar/nickname group");
   assert.equal(input("显示顶栏头像").checked, false);
   assert.equal(input("顶栏与底栏背景透明度").getAttribute("value"), "40");
   await click(button("角色")); await change(input("头像位置"), "reverse"); await change(input("气泡位置"), "right"); await click(button("保存并应用"));
@@ -205,6 +227,7 @@ async function main() {
   await click(button("恢复用户默认样式"));
   await click(button("保存并应用"));
   assert.equal(stored.appearance.user, undefined); assert.equal(stored.appearance.assistant.fontSize, 19);
+  assert.equal(input("头像与气泡间距").getAttribute("value"), "10"); assert.equal(input("显示消息时间").checked, true); assert.equal(input("段落排版").value, "default");
   await click(button("一起设置")); await click(button("恢复双方默认样式"));
   await click(button("保存并应用"));
   assert.equal(stored.appearance.assistant, undefined); assert.equal(stored.appearance.messageGap, 32);
@@ -224,7 +247,8 @@ async function main() {
   assert.equal(stored.wallpaper, wallpaper, "Wallpaper applies as soon as it is read");
   await click(button("清除壁纸")); assert.equal(stored.wallpaper, undefined);
   await chooseFile(); await act(async () => { readers[2].result = wallpaper; readers[2].onload(); });
-  await change(input("字体大小"), "25");
+  await change(input("字体大小"), "25"); await change(input("头像与气泡间距"), "22");
+  await change(input("显示消息时间"), false); await change(input("段落排版"), "center");
   await click(container.querySelector('[aria-label="关闭美化"]')); assert.ok(closed);
   await reopen();
   assert.equal(stored.wallpaper, wallpaper); assert.equal(stored.theme, "night");
@@ -233,6 +257,7 @@ async function main() {
   assert.equal(stored.appearance.user, undefined, "Retaining a draft must not apply it to the actual story");
   assert.equal(stored.appearance.assistant, undefined);
   assert.ok(editorState.loadStoryAppearanceEditorState(sessionId, stored.appearance).draft);
+  assert.equal(input("头像与气泡间距").getAttribute("value"), "22"); assert.equal(input("显示消息时间").checked, false); assert.equal(input("段落排版").value, "center");
   const cssInput = input("剧情自定义 CSS");
   const cssProps = cssInput[Object.keys(cssInput).find(key => key.startsWith("__reactProps$"))];
   assert.match(cssInput.value, /letter-spacing/, JSON.stringify({ storedCSS, rendered: cssProps.value, html: cssInput.outerHTML }));
@@ -261,7 +286,10 @@ async function main() {
     return start < 0 ? "" : lines.slice(start).join("\n");
   }).join("\n");
   const allScoped = scopeSessionCSS(optionalCSS, ".test-story");
-  postcss.parse(allScoped);
+  const optionalRules = postcss.parse(allScoped);
+  let timeOverride = false;
+  optionalRules.walkRules(rule => { if (rule.selector === ".test-story [data-story-timestamp]") rule.walkDecls("display", declaration => { if (declaration.value === "none" && declaration.important) timeOverride = true; }); });
+  assert.ok(timeOverride, "The editable CSS template can override the basic timestamp setting");
   assert.match(allScoped, /\.test-story \.story-header/);
   assert.match(allScoped, /data-story-action="send"/);
   assert.match(cssExample, /白色基础模板/); assert.match(cssExample, /pointer-events: none/);
@@ -306,7 +334,7 @@ async function main() {
   const positionVars = appearance.storyAppearanceStyle({ appearance: { user: { bubblePosition: "left" }, assistant: { bubblePosition: "right", avatarLayout: "center" } } });
   assert.equal(positionVars["--story-user-bubbleAlign"], "flex-start"); assert.equal(positionVars["--story-assistant-bubbleAlign"], "flex-end");
   assert.equal(appearance.storyAppearanceStyle({})["--story-user-bubbleAlign"], "center");
-  const fixture = document.createElement("div"); fixture.innerHTML = '<div class="story-free-layout"><article class="story-row" data-role="user" data-story-avatar-layout="reverse"><div class="story-bubble-wrap"><div class="story-bubble"><div class="story-richtext"><div class="smsg-fixture"><p>正文<br><span class="story-br-indent"></span>换行</p></div></div></div></div></article></div>';
+  const fixture = document.createElement("div"); fixture.innerHTML = '<div class="story-free-layout"><article class="story-row" data-role="user" data-story-avatar-layout="reverse"><div class="story-msg-head"><div class="story-avatar-wrap"></div><div class="story-msg-meta"><span class="story-msg-name">昵称</span><span class="story-msg-time" data-story-timestamp>12:30</span><span class="story-msg-time story-generating-head">正在输出</span></div></div><div class="story-bubble-wrap"><div class="story-bubble"><div class="story-richtext"><div class="smsg-fixture"><p>正文<br><span class="story-br-indent"></span>换行</p></div><div class="story-fold-block__content"><div class="smsg-fold"><p>折叠<br><span class="story-br-indent"></span>内容</p></div></div></div></div></div></article></div>';
   const declarations = (element, prop) => {
     const values = [];
     style.walkRules(rule => {
@@ -316,8 +344,14 @@ async function main() {
     }); return values;
   };
   assert.deepEqual(declarations(fixture.querySelector(".story-bubble-wrap"), "align-items"), ["var(--story-current-bubbleAlign,center)"], "Avatar reversal never changes bubble position");
-  assert.deepEqual(declarations(fixture.querySelector("p"), "text-indent"), ["0"], "Reader-only paragraph indentation does not leak into custom layout");
-  assert.deepEqual(declarations(fixture.querySelector(".story-br-indent"), "width"), ["0"]);
+  assert.deepEqual(declarations(fixture.querySelector("p"), "text-indent"), ["var(--story-current-textIndent,0)"], "Paragraphs use the selected indentation");
+  assert.deepEqual(declarations(fixture.querySelector("p"), "text-align"), ["var(--story-current-textAlign,justify)"]);
+  assert.deepEqual(declarations(fixture.querySelector(".story-br-indent"), "width"), ["0", "var(--story-current-textIndent,0)"]);
+  assert.deepEqual(declarations(fixture.querySelector(".story-fold-block__content .story-br-indent"), "width"), ["0"], "Layout changes never add indentation inside folded thinking/status content");
+  assert.deepEqual(declarations(fixture.querySelector(".story-row"), "gap"), ["var(--story-current-avatarGap,10px)"]);
+  assert.deepEqual(declarations(fixture.querySelector("[data-story-timestamp]"), "display"), ["var(--story-current-timeDisplay,inline)"]);
+  assert.deepEqual(declarations(fixture.querySelector(".story-generating-head"), "display"), [], "Turning off timestamps never hides generation status");
+  assert.ok(source.includes('className="story-msg-time" data-story-timestamp="">{formatStoryTime(message.createdAt)}'));
   const callsBeforeClose = settingsPatches.length;
   await chooseFile(); await act(async () => renderer.unmount());
   await act(async () => { readers[3].result = "late"; readers[3].onload(); });
@@ -341,6 +375,6 @@ async function main() {
   await freshKV.hydrateKvDb();
   assert.equal(freshState.loadStoryAppearanceEditorState("draft-a", base).draft.appearance.user.fontSize, 24);
   assert.equal(freshState.loadStoryAppearanceEditorState("draft-a", base).scrollTop, 450);
-  console.log("✅ 剧情美化：气泡独立左/中/右、正文对称边距、头像独立布局、编辑对象/展开/滚动/草稿恢复、剧情隔离与外部更新保护；原透明度、手势与保存回归通过，无 API 调用");
+  console.log("✅ 剧情美化：头像气泡间距、时间开关跟随整组、四种段落排版、独立/双方设置及草稿保存恢复；折叠内容和生成状态保护，既有布局/手势回归通过，无 API 调用");
 }
 main().then(() => process.exit(0)).catch(error => { console.error(error); process.exit(1); });

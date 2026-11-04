@@ -2504,7 +2504,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
                           </div>
                           <div className="story-msg-meta">
                             <span className="story-msg-name">{speakerName}</span>
-                            <span className="story-msg-time">{formatStoryTime(message.createdAt)}</span>
+                            <span className="story-msg-time" data-story-timestamp="">{formatStoryTime(message.createdAt)}</span>
                           </div>
                         </div>
                       ) : null}

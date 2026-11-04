@@ -200,12 +200,19 @@ export function StoryAppearanceEditor({ sessionId, initialPrefs, initialCSS, use
         {colorSetting("dialogueColor", "「」内文字颜色")}
         {colorSetting("boldColor", "加粗文字颜色")}
         <RangeSetting label="行间距" value={appearance.lineHeight} min={1.2} max={2.6} step={0.02} unit="倍" onChange={value => patch({ lineHeight: value })} />
+        <label className="story-beautify-preset"><span>段落排版</span><select aria-label="段落排版" value={appearance.paragraphMode} onChange={event => patch({ paragraphMode: event.target.value as StoryBubbleAppearance["paragraphMode"] })}>
+          <option value="default">默认</option><option value="indent">首行缩进</option><option value="center">全部居中</option><option value="indent-center">首行缩进＋居中</option>
+        </select></label>
+        <p>首行缩进为两个字，可与段落居中组合；和气泡位置分开控制。</p>
         <RangeSetting label="段落间距" value={appearance.paragraphGap} min={0} max={32} unit="px" onChange={value => patch({ paragraphGap: value })} />
         <h4>头像</h4>
         <label className="story-beautify-preset"><span>头像位置</span><select aria-label="头像位置" value={appearance.avatarLayout} onChange={event => patch({ avatarLayout: event.target.value as StoryBubbleAppearance["avatarLayout"] })}>
           <option value="default">默认位置</option><option value="center">气泡上方居中</option><option value="reverse">左右对调（角色右／用户左）</option>
         </select></label>
         <p>居中时，昵称和时间排列在头像下方。</p>
+        <RangeSetting label="头像与气泡间距" value={appearance.avatarGap} min={0} max={64} unit="px" onChange={value => patch({ avatarGap: value })} />
+        <label className="story-beautify-check"><input type="checkbox" aria-label="显示消息时间" checked={appearance.showTimestamp} onChange={event => patch({ showTimestamp: event.target.checked })} /><span>显示消息时间</span></label>
+        <p>时间开启后，与头像、昵称作为一组跟随位置设置。</p>
         <RangeSetting label="头像大小" value={appearance.avatarSize} min={20} max={72} unit="px" onChange={value => patch({ avatarSize: value })} />
         <label className="story-beautify-preset"><span>头像形状</span><select aria-label="头像形状" value={appearance.avatarShape} onChange={event => patch({ avatarShape: event.target.value as StoryBubbleAppearance["avatarShape"] })}>
           <option value="square">方形</option><option value="rounded">圆角方形</option><option value="circle">圆形</option>
@@ -228,7 +235,7 @@ export function StoryAppearanceEditor({ sessionId, initialPrefs, initialCSS, use
           <div className={`story-stage-inner${panelVisible ? "" : " story-free-layout"}`}>
             {(["user", "assistant"] as const).map(speaker => <article key={speaker} className="story-row" data-role={speaker} {...storyMessageAppearanceAttributes(prefs, speaker)}>
               <div className="story-msg-head"><div className="story-avatar-wrap"><Avatar size="md" name={speaker === "user" ? userName : characterName} src={speaker === "user" ? userAvatar : characterAvatar} /></div>
-                <div className="story-msg-meta"><span className="story-msg-name">{speaker === "user" ? userName : characterName}</span><span className="story-msg-time">12:30</span></div></div>
+                <div className="story-msg-meta"><span className="story-msg-name">{speaker === "user" ? userName : characterName}</span><span className="story-msg-time" data-story-timestamp="">12:30</span></div></div>
               <div className="story-bubble-wrap"><div className="story-bubble"><StoryHtmlRenderer colorDialogue={!panelVisible} messageId={`beauty-preview-${speaker}`} content={speaker === "user" ? "我抬起头望向你。\n\n「今天一起走走吧。」\n\n**这句话很重要。**" : "我停下脚步，笑着回应。\n\n「好，我陪你。」\n\n**我记住了你的邀请。**"} /></div></div>
             </article>)}
           </div>

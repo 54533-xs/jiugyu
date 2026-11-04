@@ -4,6 +4,10 @@
 .story-app-shell[data-story-reading-panel="hidden"]::after { display: none; }
 .story-stage-inner.story-free-layout { background: transparent; box-shadow: none; border: 0; padding-inline: 0; gap: var(--story-message-gap, 24px); }
 .story-free-layout > .story-row[data-role="user"] {
+  --story-current-avatarGap: var(--story-user-avatarGap);
+  --story-current-timeDisplay: var(--story-user-timeDisplay);
+  --story-current-textAlign: var(--story-user-textAlign);
+  --story-current-textIndent: var(--story-user-textIndent);
   --story-current-bubbleAlign: var(--story-user-bubbleAlign);
   --story-current-background: var(--story-user-background);
   --story-current-padding: var(--story-user-padding);
@@ -19,6 +23,10 @@
   --story-current-avatarRadius: var(--story-user-avatarRadius);
 }
 .story-free-layout > .story-row[data-role="assistant"] {
+  --story-current-avatarGap: var(--story-assistant-avatarGap);
+  --story-current-timeDisplay: var(--story-assistant-timeDisplay);
+  --story-current-textAlign: var(--story-assistant-textAlign);
+  --story-current-textIndent: var(--story-assistant-textIndent);
   --story-current-bubbleAlign: var(--story-assistant-bubbleAlign);
   --story-current-background: var(--story-assistant-background);
   --story-current-padding: var(--story-assistant-padding);
@@ -33,7 +41,8 @@
   --story-current-avatarSize: var(--story-assistant-avatarSize);
   --story-current-avatarRadius: var(--story-assistant-avatarRadius);
 }
-.story-free-layout > .story-row { min-width: 0; box-sizing: border-box; }
+.story-free-layout > .story-row { min-width: 0; box-sizing: border-box; gap: var(--story-current-avatarGap,10px); }
+.story-free-layout > .story-row .story-msg-head [data-story-timestamp] { display: var(--story-current-timeDisplay,inline); }
 .story-free-layout > .story-row .story-bubble-wrap { width: 100%; box-sizing: border-box; align-items: var(--story-current-bubbleAlign,center); }
 .story-free-layout > .story-row:is([data-role="user"],[data-role="assistant"]) .story-bubble {
   box-sizing: border-box; width: 100%; min-width: 0; max-width: var(--story-current-maxWidth);
@@ -45,10 +54,13 @@
   font-size: inherit; line-height: inherit; color: inherit;
 }
 .story-free-layout .story-bubble .story-richtext p { margin-block: var(--story-current-paragraphGap); }
-/* The free layout starts text evenly inside the bubble, without reader-only indentation. */
+/* Plain paragraphs follow their selected layout; HTML cards and folded content keep their own structure. */
 .story-free-layout .story-bubble .story-richtext > p,
-.story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p { text-indent: 0; }
+.story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p,
+.story-free-layout > .story-row .story-streaming-text { text-indent: var(--story-current-textIndent,0); text-align: var(--story-current-textAlign,justify); }
 .story-free-layout .story-bubble .story-richtext .story-br-indent { width: 0; }
+.story-free-layout .story-bubble .story-richtext > p .story-br-indent,
+.story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p .story-br-indent { width: var(--story-current-textIndent,0); }
 .story-free-layout .story-bubble .story-richtext p:first-child { margin-top: 0; }
 .story-free-layout .story-bubble .story-richtext p:last-child { margin-bottom: 0; }
 .story-free-layout .story-bubble .story-richtext :is(em,i) { color: inherit; }

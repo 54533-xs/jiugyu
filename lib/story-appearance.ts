@@ -14,6 +14,9 @@ export type StoryBubbleAppearance = {
   boldColor?: string;
   lineHeight?: number;
   paragraphGap?: number;
+  paragraphMode?: "default" | "indent" | "center" | "indent-center";
+  showTimestamp?: boolean;
+  avatarGap?: number;
   avatarSize?: number;
   avatarLayout?: "default" | "center" | "reverse";
   avatarShape?: "square" | "rounded" | "circle";
@@ -50,6 +53,9 @@ export function normalizeStoryBubbleAppearance(input?: StoryBubbleAppearance) {
     bubblePosition: value.bubblePosition === "left" || value.bubblePosition === "right" ? value.bubblePosition : "center",
     fontSize: numberInRange(value.fontSize, 14, 10, 28), textColor: color(value.textColor), dialogueColor: color(value.dialogueColor), boldColor: color(value.boldColor),
     lineHeight: numberInRange(value.lineHeight, 1.78, 1.2, 2.6), paragraphGap: numberInRange(value.paragraphGap, 12, 0, 32),
+    paragraphMode: value.paragraphMode === "indent" || value.paragraphMode === "center" || value.paragraphMode === "indent-center" ? value.paragraphMode : "default",
+    showTimestamp: value.showTimestamp !== false,
+    avatarGap: numberInRange(value.avatarGap, 10, 0, 64),
     avatarLayout: value.avatarLayout === "center" || value.avatarLayout === "reverse" ? value.avatarLayout : "default",
     avatarSize: numberInRange(value.avatarSize, 38, 20, 72),
     avatarShape: value.avatarShape === "circle" || value.avatarShape === "rounded" ? value.avatarShape : "square",
@@ -100,7 +106,10 @@ export function storyAppearanceStyle(prefs: StoryAppearancePrefs): CSSProperties
     const value = normalizeStoryBubbleAppearance(prefs.appearance?.[role]);
     const prefix = `--story-${role}-`;
     style[`${prefix}background`] = `color-mix(in srgb, ${value.backgroundColor || (role === "user" ? "var(--c-story-bubble-user, #f0f0f0)" : "var(--c-story-bubble-bg, #ffffff)")} ${value.backgroundOpacity}%, transparent)`;
-    for (const key of ["padding", "radius", "fontSize", "paragraphGap", "avatarSize"] as const) style[`${prefix}${key}`] = `${value[key]}px`;
+    for (const key of ["padding", "radius", "fontSize", "paragraphGap", "avatarSize", "avatarGap"] as const) style[`${prefix}${key}`] = `${value[key]}px`;
+    style[`${prefix}textAlign`] = value.paragraphMode === "center" || value.paragraphMode === "indent-center" ? "center" : "justify";
+    style[`${prefix}textIndent`] = value.paragraphMode === "indent" || value.paragraphMode === "indent-center" ? "2em" : "0";
+    style[`${prefix}timeDisplay`] = value.showTimestamp ? "inline" : "none";
     style[`${prefix}bubbleAlign`] = value.bubblePosition === "left" ? "flex-start" : value.bubblePosition === "right" ? "flex-end" : "center";
     style[`${prefix}maxWidth`] = `${value.maxWidth}%`;
     style[`${prefix}lineHeight`] = value.lineHeight;

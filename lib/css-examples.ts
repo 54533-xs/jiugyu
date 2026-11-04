@@ -1234,6 +1234,8 @@ export const STORY_CSS_EXAMPLE = `/* 剧情美化 · 白色基础模板
 /* 03 用户与角色气泡（两边分开改，作用于普通正文；HTML 卡片保留自身样式）
 以下变量用于“去掉阅读面板”的布局。放在消息行上可覆盖基础美化的变量。
 bubbleAlign：flex-start 靠左、center 居中、flex-end 靠右，与头像位置独立。
+avatarGap 为头像昵称时间整组与气泡的间距；timeDisplay 为 inline 显示、none 隐藏时间。
+textAlign 取 justify 或 center，textIndent 取 0 或 2em，对应四种段落排版。
 .story-stage-inner > .story-row[data-role="assistant"] {
   --story-assistant-background: #ffffff;
   --story-assistant-padding: 12px;
@@ -1246,6 +1248,10 @@ bubbleAlign：flex-start 靠左、center 居中、flex-end 靠右，与头像位
   --story-assistant-boldColor: #1e293b;
   --story-assistant-lineHeight: 1.8;
   --story-assistant-paragraphGap: 12px;
+  --story-assistant-avatarGap: 10px;
+  --story-assistant-timeDisplay: inline;
+  --story-assistant-textAlign: justify;
+  --story-assistant-textIndent: 0;
 }
 .story-stage-inner > .story-row[data-role="user"] {
   --story-user-background: #ffffff;
@@ -1259,6 +1265,10 @@ bubbleAlign：flex-start 靠左、center 居中、flex-end 靠右，与头像位
   --story-user-boldColor: #1e293b;
   --story-user-lineHeight: 1.8;
   --story-user-paragraphGap: 12px;
+  --story-user-avatarGap: 10px;
+  --story-user-timeDisplay: inline;
+  --story-user-textAlign: justify;
+  --story-user-textIndent: 0;
 }
 .story-row[data-role="assistant"] .story-bubble { border: 1px solid #eeeeee; box-shadow: none; }
 .story-row[data-role="user"] .story-bubble { border: 1px solid #eeeeee; box-shadow: none; }
@@ -1295,13 +1305,13 @@ bubbleAlign：flex-start 靠左、center 居中、flex-end 靠右，与头像位
 /* 06 昵称和时间：显示/隐藏、位置、大小与自定义字符
 CSS 添加的字符仅作装饰，不写入消息或发送给模型。
 .story-msg-name { display: none; }
-.story-msg-time { display: none; }
+[data-story-timestamp] { display: none !important; }
 .story-msg-meta { transform: translate(0px, 0px); gap: 4px; }
 .story-msg-name { font-size: 12px; color: #334155; order: 0; }
-.story-msg-time { font-size: 10px; color: #94a3b8; order: 1; }
+[data-story-timestamp] { font-size: 10px; color: #94a3b8; order: 1; }
 .story-msg-name::before { content: "✦ "; }
 .story-msg-name::after { content: " · 小记"; }
-.story-msg-time::before { content: "时间："; }
+[data-story-timestamp]::before { content: "时间："; }
 .story-row[data-role="assistant"] .story-bubble::before { content: "✦ 故事"; display: block; margin-bottom: 8px; font-size: 10px; color: #94a3b8; }
 */
 /* 把昵称时间放到正文气泡下方（元信息仍跟随头像所在的头部）
@@ -1397,8 +1407,8 @@ button[data-story-action="beautify"] { transform: translate(0px, 0px); }
 /* 13 正文、对白、加粗、引用、代码、图片、表格与章节
 .story-richtext { font-family: var(--story-font); }
 .story-free-layout .story-bubble .story-richtext > p,
-.story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p { text-indent: 0; }
-.story-free-layout .story-bubble .story-richtext .story-br-indent { width: 0; }
+.story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p { text-indent: var(--story-current-textIndent,0); text-align: var(--story-current-textAlign,justify); }
+.story-free-layout .story-bubble .story-richtext > [class^="smsg-"] > p .story-br-indent { width: var(--story-current-textIndent,0); }
 .story-richtext em,
 .story-richtext i { color: #64748b; }
 .story-richtext strong,
