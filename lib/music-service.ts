@@ -1,7 +1,7 @@
 // lib/music-service.ts — Unified music search service (local + Netease Cloud Music API)
 
 import { loadAllTracks, type MusicTrack } from "./music-storage";
-import { kvGet, kvSet, kvRemove, registerKvMigration } from "./kv-db";
+import { kvGet, kvSet, kvRemove, kvKeysWithPrefix, registerKvMigration } from "./kv-db";
 import {
     DEFAULT_NETEASE_API_BASE,
     isDefaultNeteaseApiBase,
@@ -26,14 +26,45 @@ function normalizeStoredMusicApiBaseUrl(baseUrl: string | undefined): string {
     return isDefaultNeteaseApiBase(normalized) ? DEFAULT_NETEASE_API_BASE : normalized;
 }
 
+/** 自动同步用户在「虚拟」App 等自定义应用中保存的网易云 API 地址与登录 Cookie */
+function trySyncFromCustomAppAccount(): { cookie?: string; apiBase?: string } | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const keys = kvKeysWithPrefix("ai_phone_custom_app_data_v1:");
+        const accountKey = keys.find(k => k.endsWith(":netease_account"));
+        if (!accountKey) return null;
+        const raw = kvGet(accountKey);
+        if (!raw) return null;
+        const list = JSON.parse(raw);
+        if (Array.isArray(list) && list[0]) {
+            return {
+                cookie: list[0].cookie || undefined,
+                apiBase: list[0].apiBase || undefined,
+            };
+        }
+    } catch { /* ignore */ }
+    return null;
+}
+
 export function loadMusicApiConfig(): MusicApiConfig {
     if (typeof window === "undefined") return { baseUrl: DEFAULT_NETEASE_API_BASE, enabled: true, version: MUSIC_API_CONFIG_VERSION };
     try {
         const raw = kvGet(MUSIC_API_KEY);
         if (raw) {
             const parsed = JSON.parse(raw) as Partial<MusicApiConfig>;
+            if (parsed.baseUrl?.trim()) {
+                return {
+                    baseUrl: normalizeStoredMusicApiBaseUrl(parsed.baseUrl),
+                    enabled: true,
+                    version: MUSIC_API_CONFIG_VERSION,
+                };
+            }
+        }
+        // 如果系统音乐未配置 API，自动借用「虚拟」App 中已配置并经过验证的 API 地址
+        const synced = trySyncFromCustomAppAccount();
+        if (synced?.apiBase) {
             return {
-                baseUrl: normalizeStoredMusicApiBaseUrl(parsed.baseUrl),
+                baseUrl: normalizeStoredMusicApiBaseUrl(synced.apiBase),
                 enabled: true,
                 version: MUSIC_API_CONFIG_VERSION,
             };
@@ -65,7 +96,17 @@ export function saveNeteaseCookie(cookie: string): void {
 
 export function loadNeteaseCookie(): string {
     if (typeof window === "undefined") return "";
-    try { return kvGet(NETEASE_COOKIE_KEY) || ""; } catch { return ""; }
+    try {
+        const stored = kvGet(NETEASE_COOKIE_KEY);
+        if (stored) return stored;
+        // 自动互通：从「虚拟」App 自动同步已登录的网易云 VIP Cookie！
+        const synced = trySyncFromCustomAppAccount();
+        if (synced?.cookie) {
+            saveNeteaseCookie(synced.cookie);
+            return synced.cookie;
+        }
+        return "";
+    } catch { return ""; }
 }
 
 export function clearNeteaseCookie(): void {
@@ -226,49 +267,83 @@ export type NeteasePlayInfo = {
 };
 
 /** Get playable URL for a Netease song, with a concrete failure reason. */
-export async function getNeteasePlayInfo(songId: number): Promise<NeteasePlayInfo> {
+export async function getNeteasePlayInfo(songId: number, songMeta?: { title?: string; artist?: string }): Promise<NeteasePlayInfo> {
     const fallbackOuterUrl = `https://music.163.com/song/media/outer/url?id=${songId}.mp3`;
     const base = neteaseBase();
-    if (!base) {
-        return { url: fallbackOuterUrl, trial: false, reason: "" };
-    }
-    try {
-        let d: any = null;
-        // 1. 优先尝试现代 EAPI 接口 /song/url/v1（标准音质，成功率更高）
+
+    // 1. 尝试自建/预设网易云 API（带 realIP 穿透大陆风控 + cookie 鉴权）
+    if (base) {
         try {
-            const v1Resp = await fetch(withNeteaseParams(`${base}/song/url/v1?id=${songId}&level=standard`));
-            const v1Data = await v1Resp.json();
-            d = v1Data?.data?.[0];
-        } catch { /* 降级到旧版接口 */ }
+            const levels = ["higher", "standard", "exhigh"];
+            for (const lvl of levels) {
+                try {
+                    const v1Resp = await fetch(withNeteaseParams(`${base}/song/url/v1?id=${songId}&level=${lvl}&timestamp=${Date.now()}`), { signal: AbortSignal.timeout(3500) });
+                    const v1Data = await v1Resp.json();
+                    const item = v1Data?.data?.[0];
+                    if (item?.url && typeof item.url === "string") {
+                        const isShortTrial = item.freeTime && item.freeTime < 50;
+                        if (!isShortTrial) {
+                            return {
+                                url: item.url.replace(/^http:\/\//i, "https://"),
+                                trial: !!item.freeTrialInfo,
+                                reason: "",
+                            };
+                        }
+                    }
+                } catch { /* try next level */ }
+            }
 
-        // 2. 降级到旧版 /song/url
-        if (!d?.url) {
+            // 尝试经典 /song/url
             try {
-                const resp = await fetch(withNeteaseParams(`${base}/song/url?id=${songId}`));
+                const resp = await fetch(withNeteaseParams(`${base}/song/url?id=${songId}&br=320000&timestamp=${Date.now()}`), { signal: AbortSignal.timeout(3500) });
                 const data = await resp.json();
-                d = data?.data?.[0];
-            } catch { /* 接口异常 */ }
-        }
-
-        const url = d?.url;
-        if (url && typeof url === "string") {
-            return { url: url.replace(/^http:\/\//, "https://"), trial: !!d?.freeTrialInfo, reason: "" };
-        }
-        const fee = d?.fee;
-        const loggedIn = !!loadNeteaseCookie();
-        if (fee === 1) {
-            return { url: null, trial: false, reason: loggedIn ? "VIP 歌曲，当前账号没有黑胶会员" : "VIP 歌曲，请先在设置中登录网易云账号" };
-        }
-        if (fee === 4) {
-            return { url: null, trial: false, reason: "付费专辑歌曲，需购买后才能播放" };
-        }
-
-        // 3. 免费歌曲如果因 API 实例风控返回 null，直接回退到网易云官方外链播放源
-        return { url: fallbackOuterUrl, trial: false, reason: "" };
-    } catch (e) {
-        console.warn("[MusicService] Get play URL failed, using fallback outer url:", e);
-        return { url: fallbackOuterUrl, trial: false, reason: "" };
+                const item = data?.data?.[0];
+                if (item?.url && typeof item.url === "string" && !item.freeTrialInfo) {
+                    return {
+                        url: item.url.replace(/^http:\/\//i, "https://"),
+                        trial: false,
+                        reason: "",
+                    };
+                }
+            } catch { /* try next */ }
+        } catch { /* fall through */ }
     }
+
+    // 2. Meting ID 专用跨源解密解析（和「虚拟」APP 完全对齐）
+    try {
+        const resp = await fetch(`https://api.injahow.cn/meting/?type=url&id=${songId}`, { signal: AbortSignal.timeout(3500) });
+        const data = await resp.json();
+        if (data?.url && typeof data.url === "string") {
+            return {
+                url: data.url.replace(/^http:\/\//i, "https://"),
+                trial: false,
+                reason: "",
+            };
+        }
+    } catch { /* try next */ }
+
+    // 3. 全网多平台 (咪咕/QQ/酷狗) 智能搜索匹配
+    if (songMeta?.title) {
+        try {
+            const query = `${songMeta.title} ${songMeta.artist || ""}`.trim();
+            const resp = await fetch(`https://api.injahow.cn/meting/?type=search&id=${encodeURIComponent(query)}&limit=1`, { signal: AbortSignal.timeout(3500) });
+            const data = await resp.json();
+            if (Array.isArray(data) && data[0]?.url) {
+                return {
+                    url: data[0].url.replace(/^http:\/\//i, "https://"),
+                    trial: false,
+                    reason: "",
+                };
+            }
+        } catch { /* try next */ }
+    }
+
+    // 4. 网易云官方外链兜底
+    return {
+        url: fallbackOuterUrl,
+        trial: false,
+        reason: "",
+    };
 }
 
 /** Get playable URL for a Netease song */
@@ -870,8 +945,8 @@ export async function findPlayableMatch(title: string, _artist?: string): Promis
     // Try netease results one by one until we find a playable URL
     const neteaseResults = results.filter(r => r.source === "netease" && r.neteaseResult);
     for (const r of neteaseResults.slice(0, 5)) {
-        const url = await getNeteasePlayUrl(r.neteaseResult!.id);
-        if (url) return { result: r, playUrl: url };
+        const info = await getNeteasePlayInfo(r.neteaseResult!.id, { title: r.neteaseResult!.name, artist: r.neteaseResult!.artists });
+        if (info.url) return { result: r, playUrl: info.url };
     }
 
     return null;
