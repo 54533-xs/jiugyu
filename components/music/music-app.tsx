@@ -293,7 +293,7 @@ export default function MusicApp({ onClose, headerAccessory, initialTogether = f
     };
 
     return (
-        <div className="music-app" style={appBgStyle(bgCfg)} {...(player.currentTrack ? { "data-nowbar": "" } : {})}>
+        <div className={`music-app ${privateStyles.app}`} style={appBgStyle(bgCfg)} {...(player.currentTrack ? { "data-nowbar": "" } : {})}>
             {customCss && <SessionCustomCSS css={customCss} scope=".music-app" />}
             {musicToast && (
                 <div className="music-toast-overlay">
