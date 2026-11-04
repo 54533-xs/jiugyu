@@ -463,7 +463,7 @@ export default function MusicPlayer() {
 
     const hasLyrics = parsedLyrics.length > 0;
     const modeInfo = PLAY_MODE_ICONS[player.playMode];
-    const customBg = playerBgStyle(bgCfg);
+    const customBg = playerBgStyle(bgCfg, resolvedTheme);
     const ambientVars = {
         "--mp-c1": palette[0],
         "--mp-c2": palette[1],

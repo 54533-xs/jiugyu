@@ -345,7 +345,7 @@ export default function MusicApp({ onClose, headerAccessory, initialTogether = f
             className={`music-app ${privateStyles.app}`}
             data-theme={resolvedTheme}
             data-music-theme={resolvedTheme}
-            style={appBgStyle(bgCfg)}
+            style={appBgStyle(bgCfg, resolvedTheme)}
             {...(player.currentTrack ? { "data-nowbar": "" } : {})}
         >
             {customCss && <SessionCustomCSS css={customCss} scope=".music-app" />}
@@ -1848,7 +1848,7 @@ function MusicSettingsTab({
 
                     {bg.image && (
                         <div className="music-bg-preview" style={{ backgroundImage: `url("${bg.image}")` }}>
-                            <span style={{ opacity: bg.dim / 100 }} />
+                            <span style={{ opacity: bg.dim / 100, background: resolveMusicTheme(themeMode) === "light" ? "#f8f7f5" : "#08090e" }} />
                         </div>
                     )}
 
@@ -1872,7 +1872,7 @@ function MusicSettingsTab({
                     {bg.image && (
                         <>
                             <div className="music-settings-row" style={{ marginTop: 4 }}>
-                                <span className="music-settings-label">背景暗化 {bg.dim}%</span>
+                                <span className="music-settings-label">{resolveMusicTheme(themeMode) === "light" ? "白透遮罩" : "背景暗化"} {bg.dim}%</span>
                             </div>
                             <input
                                 type="range"
@@ -1900,7 +1900,7 @@ function MusicSettingsTab({
                         <>
                             {bg.playerImage && (
                                 <div className="music-bg-preview" style={{ backgroundImage: `url("${bg.playerImage}")` }}>
-                                    <span style={{ opacity: bg.playerDim / 100 }} />
+                                    <span style={{ opacity: bg.playerDim / 100, background: resolveMusicTheme(themeMode) === "light" ? "#f8f7f5" : "#08090e" }} />
                                 </div>
                             )}
 
@@ -1924,7 +1924,7 @@ function MusicSettingsTab({
                             {bg.playerImage && (
                                 <>
                                     <div className="music-settings-row" style={{ marginTop: 4 }}>
-                                        <span className="music-settings-label">背景暗化 {bg.playerDim}%</span>
+                                        <span className="music-settings-label">{resolveMusicTheme(themeMode) === "light" ? "白透遮罩" : "背景暗化"} {bg.playerDim}%</span>
                                     </div>
                                     <input
                                         type="range"
