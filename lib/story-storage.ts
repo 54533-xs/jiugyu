@@ -1,9 +1,10 @@
 import Dexie from "dexie";
 import { formatChatTimestamp } from "./llm-prompt-assembler";
 import { hydrateKvDb, kvGet, kvSet, registerKvMigration } from "./kv-db";
-import type { StoryAppearance, StoryChromeAppearance, StoryReadingPanelMode } from "./story-appearance";
+import type { StoryAppearance, StoryAppearanceMode, StoryChromeAppearance, StoryReadingPanelMode } from "./story-appearance";
 
 export type StoryUiPrefs = {
+  appearanceMode?: StoryAppearanceMode;
   /** 默认自动：有壁纸时移除阅读面板，无壁纸时保留。 */
   readingPanel?: StoryReadingPanelMode;
   appearance?: StoryAppearance;

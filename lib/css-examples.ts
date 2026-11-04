@@ -1168,6 +1168,8 @@ export const STORY_CSS_EXAMPLE = `/* 剧情美化 · 白色基础模板
 只作用于当前剧情。修改数值即可；可选功能取消对应整段注释。
 贴图地址替换为自己的完整图片 URL，不会自动请求示例图片。
 高级 CSS 优先于基础美化：不想覆盖某项，删除对应规则即可。
+不想使用任何基础拉杆或两栏参数，请将美化方式切为「仅使用高级 CSS」。
+当前参数、CSS 和美化方式可在预览下方一起保存为命名预设。
 这里的 :root 会自动指向当前剧情，不要改成 .story-app-shell。
 */
 
@@ -1232,7 +1234,7 @@ export const STORY_CSS_EXAMPLE = `/* 剧情美化 · 白色基础模板
 */
 
 /* 03 用户与角色气泡（两边分开改，作用于普通正文；HTML 卡片保留自身样式）
-以下变量用于“去掉阅读面板”的布局。放在消息行上可覆盖基础美化的变量。
+以下变量用于组合模式中“去掉阅读面板”的布局。放在消息行上可覆盖基础美化的变量。
 bubbleAlign：flex-start 靠左、center 居中、flex-end 靠右，与头像位置独立。
 avatarGap 为头像昵称时间整组与气泡的间距；timeDisplay 为 inline 显示、none 隐藏时间。
 textAlign 取 justify 或 center，textIndent 取 0 或 2em，对应四种段落排版。
@@ -1276,12 +1278,29 @@ textAlign 取 justify 或 center，textIndent 取 0 或 2em，对应四种段落
 .story-row[data-role="user"] .story-bubble { border: 1px solid #eeeeee; box-shadow: none; }
 */
 
+/* 仅使用高级 CSS 时，直接设置样式即可；下面示例也适用于组合模式。
+.story-row[data-role="assistant"] .story-bubble {
+  background: #ffffff; color: #334155; padding: 12px; border-radius: 12px;
+  width: 100%; max-width: 100%; box-sizing: border-box; font-size: 14px; line-height: 1.8;
+}
+.story-row[data-role="user"] .story-bubble {
+  background: #ffffff; color: #334155; padding: 12px; border-radius: 12px;
+  width: 100%; max-width: 100%; box-sizing: border-box; font-size: 14px; line-height: 1.8;
+}
+.story-row .story-richtext { font-size: inherit; line-height: inherit; color: inherit; }
+.story-row .story-bubble-wrap { align-items: center; }
+.story-row .story-richtext p { text-align: justify; text-indent: 0; margin-block: 12px; }
+.story-row .story-richtext .story-dialogue { color: #64748b; }
+.story-row .story-richtext em { color: #64748b; }
+.story-row .story-richtext strong { color: #1e293b; }
+*/
+
 /* 04 头像大小、形状、隐藏与位移
-为兼容基础美化的尺寸，width/height 保留 !important。
+消息头像尺寸可直接覆盖，无需额外提高优先级。
 .story-stage-inner .story-row[data-role="assistant"] .story-avatar-wrap { width: 42px; flex: 0 0 42px; }
-.story-stage-inner .story-row[data-role="assistant"] .story-avatar-wrap .ui-avatar { width: 42px !important; height: 42px !important; border-radius: 50%; }
+.story-stage-inner .story-row[data-role="assistant"] .story-avatar-wrap .ui-avatar { width: 42px; height: 42px; border-radius: 50%; }
 .story-stage-inner .story-row[data-role="user"] .story-avatar-wrap { width: 42px; flex: 0 0 42px; }
-.story-stage-inner .story-row[data-role="user"] .story-avatar-wrap .ui-avatar { width: 42px !important; height: 42px !important; border-radius: 50%; }
+.story-stage-inner .story-row[data-role="user"] .story-avatar-wrap .ui-avatar { width: 42px; height: 42px; border-radius: 50%; }
 .story-row .story-avatar-wrap { display: none; }
 .story-avatar-wrap { transform: translate(0px, 0px); }
 */

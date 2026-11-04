@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 export type StoryReadingPanelMode = "auto" | "show" | "hide";
+export type StoryAppearanceMode = "combined" | "css-only";
 export type StoryBubbleAppearance = {
   backgroundColor?: string;
   backgroundOpacity?: number;
@@ -31,7 +32,13 @@ export type StoryChromeAppearance = {
   controlsColor?: string;
   hideHeaderAvatar?: boolean;
 };
-export type StoryAppearancePrefs = { chrome?: StoryChromeAppearance; theme?: string; wallpaper?: string; readingPanel?: StoryReadingPanelMode; appearance?: StoryAppearance };
+export type StoryAppearancePrefs = { appearanceMode?: StoryAppearanceMode; chrome?: StoryChromeAppearance; theme?: string; wallpaper?: string; readingPanel?: StoryReadingPanelMode; appearance?: StoryAppearance };
+
+export const isStoryBasicAppearanceEnabled = (prefs: StoryAppearancePrefs) => prefs.appearanceMode !== "css-only";
+
+export function storyStageAppearanceClass(prefs: StoryAppearancePrefs) {
+  return isStoryReadingPanelVisible(prefs) ? "" : isStoryBasicAppearanceEnabled(prefs) ? " story-free-layout" : " story-css-only-layout";
+}
 
 export const STORY_THEMES = [
   { id: "paper", color: "#94a3b8", name: "纸白" },
@@ -80,6 +87,7 @@ export function normalizeStoryChromeAppearance(input?: StoryChromeAppearance) {
 }
 
 export function storyChromeAttributes(prefs: StoryAppearancePrefs) {
+  if (!isStoryBasicAppearanceEnabled(prefs)) return {};
   const chrome = normalizeStoryChromeAppearance(prefs.chrome);
   return {
     "data-story-bars-opacity": typeof prefs.chrome?.barOpacity === "number" ? "custom" : undefined,
@@ -90,11 +98,12 @@ export function storyChromeAttributes(prefs: StoryAppearancePrefs) {
 }
 
 export function storyMessageAppearanceAttributes(prefs: StoryAppearancePrefs, role: string) {
-  return { "data-story-avatar-layout": role === "user" || role === "assistant"
+  return { "data-story-avatar-layout": isStoryBasicAppearanceEnabled(prefs) && (role === "user" || role === "assistant")
     ? normalizeStoryBubbleAppearance(prefs.appearance?.[role]).avatarLayout : undefined };
 }
 
 export function storyAppearanceStyle(prefs: StoryAppearancePrefs): CSSProperties {
+  if (!isStoryBasicAppearanceEnabled(prefs)) return {};
   const style: Record<string, string | number> = { "--story-message-gap": `${normalizeStoryMessageGap(prefs.appearance?.messageGap)}px` };
   const chrome = normalizeStoryChromeAppearance(prefs.chrome);
   if (typeof prefs.chrome?.barOpacity === "number") {

@@ -71,8 +71,15 @@ async function main() {
   const { act } = React;
   const { createRoot } = require("react-dom/client");
   const { StoryAppearanceEditor } = require(path.join(root, "components/story/story-appearance-editor.tsx"));
-  const container = document.getElementById("root");
-  let renderer = createRoot(container);
+  const mount = document.getElementById("root");
+  const container = document.querySelector(".phone-shell");
+  let renderer = createRoot(mount);
+  const previewVar = (element, key) => {
+    const source = element.querySelector("style[data-story-appearance-vars]")?.textContent || "";
+    let value = "";
+    require("postcss").parse(source).walkDecls(key, decl => { value = decl.value; });
+    return value;
+  };
   let sessionId = "appearance-test";
   const editorState = require(path.join(root, "lib/story-appearance-editor-state.ts"));
   let stored = { theme: "paper", voiceEnabled: true }, storedCSS = ".example { color: red; }", applied = 0, closed = false;
@@ -92,7 +99,7 @@ async function main() {
     const key = Object.keys(element).find(name => name.startsWith("__reactProps$"));
     element[key].onChange({ target: { value, checked: value } });
   });
-  const reopen = async () => { await act(async () => renderer.unmount()); renderer = createRoot(container); await render(); };
+  const reopen = async () => { await act(async () => renderer.unmount()); renderer = createRoot(mount); await render(); };
   await render();
   assert.equal(container.querySelectorAll('select[aria-label="主题预设"] option').length, 6);
   assert.equal(input("字体大小"), undefined, "Original reader hides free-layout controls");
@@ -110,10 +117,10 @@ async function main() {
   assert.deepEqual(stored.chrome, { barOpacity: 60, buttonOpacity: 65, controlsColor: "#123456", hideHeaderAvatar: true });
   let demo = container.querySelector(".story-beautify-preview");
   assert.equal(demo.getAttribute("data-story-header-avatar"), "hidden");
-  assert.match(demo.style.getPropertyValue("--story-header-background"), /60%/);
-  assert.match(demo.style.getPropertyValue("--story-footer-background"), /60%/);
-  assert.match(demo.style.getPropertyValue("--story-controls-background"), /65%/);
-  assert.equal(demo.style.getPropertyValue("--story-controls-color"), "#123456");
+  assert.match(previewVar(demo, "--story-header-background"), /60%/);
+  assert.match(previewVar(demo, "--story-footer-background"), /60%/);
+  assert.match(previewVar(demo, "--story-controls-background"), /65%/);
+  assert.equal(previewVar(demo, "--story-controls-color"), "#123456");
   assert.equal(applied, 0, "Chrome applies before basic controls even become visible");
   // A touch beginning on the slider must not save its native jump when it becomes a vertical scroll.
   const range = input("两栏按钮背景透明度");
@@ -156,7 +163,7 @@ async function main() {
   assert.equal(input("段落排版").querySelectorAll("option").length, 4);
   await change(input("头像与气泡间距"), "26"); await change(input("显示消息时间"), false); await change(input("段落排版"), "indent");
   assert.equal(stored.appearance, undefined, "Basic edits are only previewed before Apply");
-  assert.equal(container.querySelector('[data-role="user"]').closest(".story-beautify-preview").style.getPropertyValue("--story-user-fontSize"), "21px");
+  assert.equal(previewVar(container.querySelector(".story-beautify-preview"), "--story-user-fontSize"), "21px");
   await click(button("角色"));
   assert.equal(input("字体大小").getAttribute("value"), "14");
   assert.equal(input("头像与气泡间距").getAttribute("value"), "10"); assert.equal(input("显示消息时间").checked, true);
@@ -308,6 +315,43 @@ async function main() {
   assert.match(cssExample, /白色基础模板/); assert.match(cssExample, /pointer-events: none/);
   assert.ok(!/url\(/.test(cssExample.replace(/\/\*[\s\S]*?\*\//g, "")), "White base never fetches placeholder images or fonts");
   const style = postcss.parse(fs.readFileSync(path.join(root, "styles/story-appearance.css"), "utf8"));
+  // Advanced rules beat all generated basic declarations, including avatar size and root variables,
+  // while authored keyframes and declaration priorities stay intact.
+  const priorityCSS = ':root { --story-user-fontSize: 27px; } .story-bubble { padding: 7px; opacity: .8; animation: breathe 1s infinite; } .ui-avatar { width: 51px; }';
+  const priorityRules = postcss.parse(scopeSessionCSS(priorityCSS, ".test-story", true));
+  const priorityFixture = document.createElement("div"); priorityFixture.className = "test-story";
+  priorityFixture.innerHTML = '<div class="story-free-layout"><article class="story-row" data-role="user"><div class="story-avatar-wrap"><div class="ui-avatar" data-avatar-size="md"></div></div><div class="story-bubble"></div></article></div>';
+  for (const [selector, property] of [[".story-bubble", "padding"], [".ui-avatar", "width"]]) {
+    const element = priorityFixture.querySelector(selector);
+    const override = priorityRules.nodes.find(rule => rule.selector && element.matches(rule.selector));
+    assert.ok(override.selector.includes(":not(#story-css-priority-reserved)"));
+    assert.ok(override.nodes.some(decl => decl.prop === property && !decl.important));
+    style.walkRules(rule => {
+      if (rule.selector.includes("::") || rule.selector.includes(":focus-within") || !element.matches(rule.selector)) return;
+      rule.walkDecls(property, decl => { assert.ok(!decl.important); assert.ok(!rule.selector.includes("#")); });
+    });
+  }
+  assert.ok(priorityFixture.matches(priorityRules.nodes[0].selector));
+  assert.equal(priorityRules.nodes[0].nodes[0].prop, "--story-user-fontSize");
+  assert.equal(demo.style.getPropertyValue("--story-user-fontSize"), "", "Generated variables must not use inline style and defeat CSS overrides");
+  const complexCSS = `@layer my-theme; @media (max-width: 600px) {
+    :is(.story-bubble,.story-msg-head), [data-label="a,b"] { content: "a{b}c"; --image: url("data:image/svg+xml,<svg>{}</svg>"); }
+  } @keyframes breathe { from { opacity: .2; } to { opacity: 1; } }
+  .story-bubble::after { content: "}"; /* } */ color: red; }`;
+  const complexRules = postcss.parse(scopeSessionCSS(complexCSS, ".test-story", true));
+  assert.equal(complexRules.nodes[0].name, "layer"); assert.equal(complexRules.nodes[0].params, "my-theme");
+  const mediaRule = complexRules.nodes.find(node => node.name === "media").nodes[0];
+  assert.equal(mediaRule.selector, '.test-story:not(#story-css-priority-reserved) :is(.story-bubble,.story-msg-head), .test-story:not(#story-css-priority-reserved) [data-label="a,b"]');
+  assert.equal(mediaRule.nodes.find(node => node.prop === "content").value, '"a{b}c"');
+  const keyframes = complexRules.nodes.find(node => node.name === "keyframes");
+  assert.deepEqual(keyframes.nodes.map(rule => rule.selector), ["from", "to"]);
+  complexRules.walkDecls(decl => assert.ok(!decl.important, "Scoping must never force important and suppress CSS animations"));
+  assert.ok(complexRules.nodes.at(-1).selector.endsWith(".story-bubble::after"));
+  assert.equal(scopeSessionCSS(".bubble { color: red; }", ".other-app"), ".other-app .bubble { color: red; }");
+  assert.match(scopeSessionCSS(".test-story:hover { color: red; }", ".test-story", true), /^\.test-story:not\(#story-css-priority-reserved\):hover/);
+  assert.equal(appearance.storyStageAppearanceClass({ readingPanel: "hide", appearanceMode: "css-only" }), " story-css-only-layout");
+  assert.equal(appearance.storyStageAppearanceClass({ readingPanel: "show", appearanceMode: "css-only" }), "");
+  assert.deepEqual(appearance.storyChromeAttributes({ appearanceMode: "css-only", chrome: { controlsColor: "#123456", hideHeaderAvatar: true } }), {});
   const matching = (element, property) => {
     let found = false;
     style.walkRules(rule => { if (!rule.nodes.some(node => node.prop === property && node.value.includes("--story-controls-"))) return;
@@ -329,7 +373,7 @@ async function main() {
     extra.remove();
   }
   await change(input("两栏按钮背景透明度"), "100");
-  assert.match(demo.style.getPropertyValue("--story-controls-background"), /0%/);
+  assert.match(previewVar(demo, "--story-controls-background"), /0%/);
   const opacityRules = [];
   style.walkDecls("opacity", declaration => { if (declaration.parent.selector.includes("data-story-controls-opacity")) opacityRules.push(declaration.value); });
   assert.deepEqual([...new Set(opacityRules)], ["1", ".48"], "Only disabled state dims content; the transparency slider never fades text/icons");
@@ -371,9 +415,74 @@ async function main() {
   assert.equal(declarations(colorFixture.querySelector("i"), "color").at(-1), "var(--story-current-italicColor)");
   assert.equal(declarations(colorFixture.querySelector("strong em"), "color").at(-1), "var(--story-current-boldColor)");
   assert.equal(declarations(colorFixture.querySelector(".story-accent"), "color").at(-1), "var(--story-current-boldColor)");
+
+  // Full appearance snapshots: draft capture, selection, rename, overwrite, delete and CSS-only switching.
+  const presetsStore = require(path.join(root, "lib/story-appearance-presets.ts"));
+  assert.equal(container.querySelector(".story-beautify-saved-presets").previousElementSibling.querySelector("h3").textContent, "效果预览");
+  assert.equal(mount.querySelector(".story-beautify-page"), null, "Editor controls are outside the session CSS scope");
+  await click(button("去掉")); await change(input("字体大小"), "22");
+  const customCSS = ':root { --story-user-fontSize: 27px; } .story-bubble { padding: 7px; }';
+  await change(input("剧情自定义 CSS"), customCSS);
+  await change(input("美化预设名称"), "  夜色  "); await click(button("保存为新预设"));
+  const presetA = presetsStore.getStoryAppearancePresets()[0];
+  assert.equal(presetA.name, "夜色"); assert.equal(presetA.prefs.appearance.user.fontSize, 22);
+  assert.equal(stored.appearance, undefined, "Saving a draft as a preset must not apply it to the story");
+  assert.equal(presetA.prefs.appearanceMode, "combined"); assert.equal(presetA.css, customCSS);
+  assert.equal(presetA.prefs.voiceEnabled, undefined);
+  const detached = presetsStore.getStoryAppearancePresets(); detached[0].prefs.appearance.user.fontSize = 99;
+  assert.equal(presetsStore.getStoryAppearancePresets()[0].prefs.appearance.user.fontSize, 22, "Snapshots never share mutable objects");
+  await change(input("美化方式"), "css-only");
+  assert.equal(stored.appearanceMode, "css-only"); assert.equal(input("字体大小"), undefined); assert.equal(input("两栏按钮背景透明度"), undefined);
+  assert.equal(button("保存并应用"), undefined);
+  demo = container.querySelector(".story-beautify-preview");
+  assert.ok(demo.querySelector(".story-css-only-layout")); assert.equal(demo.querySelector(".story-free-layout"), null);
+  assert.equal(demo.getAttribute("data-story-controls-color"), null); assert.equal(demo.querySelector("style[data-story-appearance-vars]"), null);
+  assert.equal(demo.querySelector(".story-row").getAttribute("data-story-avatar-layout"), null);
+  assert.ok([...demo.querySelectorAll("style")].some(style => style.textContent.includes("padding: 7px")), "Advanced CSS is included in the preview");
+  assert.deepEqual(appearance.storyAppearanceStyle(stored), {});
+  await change(input("美化预设名称"), "纯 CSS"); await click(button("保存为新预设"));
+  const presetB = presetsStore.getStoryAppearancePresets().find(item => item.id !== presetA.id);
+  assert.equal(presetB.prefs.appearanceMode, "css-only"); assert.equal(presetB.prefs.appearance.user.fontSize, 22, "Disabled sliders remain saved for restoration");
+  await change(input("美化方式"), "combined"); assert.equal(input("字体大小").getAttribute("value"), "22");
+  assert.ok(input("两栏按钮背景透明度"), "Switching back restores chrome controls too");
+  await change(input("字体大小"), "25"); await change(input("剧情自定义 CSS"), ".story-row { gap: 3px; }");
+  await change(input("美化预设"), presetA.id);
+  assert.equal(input("字体大小").getAttribute("value"), "25", "Selection alone does not replace the current draft");
+  await change(input("美化预设名称"), "夜色改名"); await click(button("保存名称"));
+  assert.equal(presetsStore.getStoryAppearancePresets().find(item => item.id === presetA.id).css, customCSS, "Renaming must not overwrite snapshot content");
+  await click(button("应用预设"));
+  assert.equal(stored.appearance.user.fontSize, 22); assert.equal(storedCSS, customCSS); assert.equal(stored.voiceEnabled, true);
+  assert.equal(closed, true, "Applying presets does not invoke Close again");
+  assert.equal(input("字体大小").getAttribute("value"), "22");
+  assert.equal(editorState.loadStoryAppearanceEditorState(sessionId, stored.appearance).draft, undefined);
+  await change(input("字体大小"), "24"); await click(button("更新为当前参数"));
+  assert.equal(presetsStore.getStoryAppearancePresets().find(item => item.id === presetA.id).prefs.appearance.user.fontSize, 24);
+  assert.equal(stored.appearance.user.fontSize, 22, "Updating the preset only changes its saved snapshot");
+  await change(input("美化预设"), presetB.id); await click(button("应用预设"));
+  assert.equal(stored.appearanceMode, "css-only");
+  await reopen();
+  assert.equal(input("美化方式").value, "css-only"); assert.equal(input("美化预设").value, presetB.id);
+  await click(button("删除预设")); assert.equal(presetsStore.getStoryAppearancePresets().length, 2);
+  await click(button("取消删除")); assert.equal(presetsStore.getStoryAppearancePresets().length, 2);
+  await click(button("删除预设")); await click(button("确认删除预设"));
+  assert.equal(presetsStore.getStoryAppearancePresets().length, 1); assert.equal(stored.appearanceMode, "css-only", "Deleting does not change applied styles");
+  // Legacy/default snapshots must clear visual settings that are absent, without touching voice.
+  const defaultsPreset = presetsStore.saveStoryAppearancePreset("页面默认", {}, "");
+  sessionId = "second-story"; await reopen();
+  assert.equal(input("美化预设").querySelectorAll("option").length, 3, "Presets are shared between stories");
+  await change(input("美化预设"), defaultsPreset.id);
+  await chooseFile(); const stalePresetRead = readers.at(-1);
+  await click(button("应用预设"));
+  await act(async () => { stalePresetRead.result = "must-not-restore"; stalePresetRead.onload(); });
+  assert.equal(stored.appearanceMode, "combined"); assert.equal(stored.readingPanel, "auto");
+  assert.equal(stored.appearance, undefined); assert.equal(stored.chrome, undefined); assert.equal(stored.wallpaper, undefined); assert.equal(stored.theme, undefined);
+  assert.equal(storedCSS, ""); assert.equal(stored.voiceEnabled, true);
+  assert.equal(input("字体大小"), undefined, "Default preset restores the reader");
+  const defaultSnapshot = presetsStore.getStoryAppearancePresets().find(item => item.id === defaultsPreset.id);
+  assert.deepEqual(Object.keys(defaultSnapshot.prefs).sort(), ["appearance", "appearanceMode", "chrome", "readingPanel", "theme", "wallpaper"].sort());
   const callsBeforeClose = settingsPatches.length;
   await chooseFile(); await act(async () => renderer.unmount());
-  await act(async () => { readers[3].result = "late"; readers[3].onload(); });
+  await act(async () => { readers.at(-1).result = "late"; readers.at(-1).onload(); });
   assert.equal(settingsPatches.length, callsBeforeClose, "Late wallpaper reads cannot save after closing");
   // Keep session drafts isolated; ignore an old draft after an externally applied style changes.
   const pending = { user: { fontSize: 24 } }, base = { user: { fontSize: 18 } };
@@ -389,11 +498,16 @@ async function main() {
   assert.ok(diskDraft, "Progress reaches IndexedDB rather than only component memory");
   delete require.cache[require.resolve(path.join(root, "lib/kv-db.ts"))];
   delete require.cache[require.resolve(path.join(root, "lib/story-appearance-editor-state.ts"))];
+  delete require.cache[require.resolve(path.join(root, "lib/story-appearance-presets.ts"))];
   const freshKV = require(path.join(root, "lib/kv-db.ts"));
   const freshState = require(path.join(root, "lib/story-appearance-editor-state.ts"));
   await freshKV.hydrateKvDb();
   assert.equal(freshState.loadStoryAppearanceEditorState("draft-a", base).draft.appearance.user.fontSize, 24);
   assert.equal(freshState.loadStoryAppearanceEditorState("draft-a", base).scrollTop, 450);
-  console.log("✅ 剧情美化：斜体/心声独立与双方颜色、旧格式及粗斜体优先级、保存恢复与草稿；原排版、时间、间距和手势回归通过，无 API 调用");
+  const freshPresets = require(path.join(root, "lib/story-appearance-presets.ts")).getStoryAppearancePresets();
+  assert.equal(freshPresets.find(item => item.id === presetA.id).name, "夜色改名");
+  assert.equal(freshPresets.find(item => item.id === presetA.id).prefs.appearance.user.fontSize, 24);
+  assert.ok(!freshPresets.some(item => item.id === presetB.id), "Deletion survives IndexedDB hydration");
+  console.log("✅ 剧情美化：预设完整快照、选择/应用/改名/更新/删除、跨剧情与重载恢复、纯 CSS 切换、草稿保留及原有美化回归通过，无 API 调用");
 }
 main().then(() => process.exit(0)).catch(error => { console.error(error); process.exit(1); });

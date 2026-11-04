@@ -11,6 +11,7 @@ export type StoryAppearanceEditorState = {
   barsOpen: boolean;
   cssOpen: boolean;
   scrollTop: number;
+  selectedPresetId?: string;
   draft?: { appearance?: StoryAppearance; baseAppearance?: StoryAppearance };
 };
 
@@ -29,6 +30,7 @@ export function loadStoryAppearanceEditorState(sessionId: string, appliedAppeara
     return {
       role: roleOrDefault(saved.role), barsOpen: saved.barsOpen === true, cssOpen: saved.cssOpen === true,
       scrollTop: scrollOrDefault(saved.scrollTop),
+      selectedPresetId: typeof saved.selectedPresetId === "string" ? saved.selectedPresetId : undefined,
       // A saved draft must not overwrite styles imported or changed elsewhere since it was started.
       draft: draft && typeof draft === "object" && !Array.isArray(draft) && validAppearance(draft.appearance) && validAppearance(draft.baseAppearance)
         && JSON.stringify(draft.baseAppearance) === JSON.stringify(appliedAppearance) ? draft : undefined,

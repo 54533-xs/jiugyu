@@ -49,7 +49,8 @@ function MiniPhoneIcon({ size = 18 }: { size?: number }) {
   );
 }
 import { StoryAppearanceEditor } from "./story-appearance-editor";
-import { isStoryReadingPanelVisible, storyAppearanceStyle, storyChromeAttributes, storyMessageAppearanceAttributes, type StoryAppearancePrefs } from "@/lib/story-appearance";
+import { StoryAppearanceVariables } from "./story-appearance-variables";
+import { isStoryReadingPanelVisible, storyStageAppearanceClass, storyChromeAttributes, storyMessageAppearanceAttributes, type StoryAppearancePrefs } from "@/lib/story-appearance";
 import { Avatar } from "@/components/ui/primitives";
 import { StoryHtmlRenderer, type StoryVoiceSegment } from "@/components/ui/story-html-renderer";
 import { StorySettingsPage, STORY_DEFAULT_STATUS_RENDER, STORY_DEFAULT_THEATER_RENDER } from "@/components/story/story-settings-page";
@@ -282,7 +283,7 @@ function StoryGeneratingIndicator({
     <article className="story-row" data-role="assistant" {...storyMessageAppearanceAttributes(appearancePrefs, "assistant")}>
       <div className="story-msg-head">
         <div className="story-avatar-wrap">
-          <Avatar src={avatar || undefined} name={characterName} size="md" />
+          <Avatar cssSized src={avatar || undefined} name={characterName} size="md" />
         </div>
         <div className="story-msg-meta">
           <span className="story-msg-name">{characterName}</span>
@@ -627,7 +628,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
   // Preview geometry stays inside the editor so canceling cannot shift the reading position.
   const readingPanelVisible = isStoryReadingPanelVisible(uiPrefs);
   const customFontSource = uiPrefs.customFontDataUrl || uiPrefs.customFontUrl || "";
-  const storyShellStyle = { ...storyAppearanceStyle(uiPrefs), ...(customFontSource
+  const storyShellStyle = { ...(customFontSource
     ? { "--story-font": '"StoryCustomFont", "Noto Serif SC", "Songti SC", serif' } : {}) } as CSSProperties;
   const customFontFace = customFontSource
     ? `@font-face{font-family:"StoryCustomFont";src:url(${JSON.stringify(customFontSource)});font-display:swap;}`
@@ -2362,10 +2363,11 @@ export function StoryApp({ onClose }: StoryAppProps) {
       onMouseLeave={handleTouchEnd}
     >
       {/* Styles moved to styles/story.css */}
+      <StoryAppearanceVariables prefs={uiPrefs} scope={sessionScope} />
       {customFontFace ? <style>{customFontFace}</style> : null}
       {uiPrefs.wallpaper ? <div className="story-wallpaper-layer" style={{ backgroundImage: `url(${uiPrefs.wallpaper})` }} /> : null}
       {currentSession.customCSS ? (
-        <SessionCustomCSS css={currentSession.customCSS} scope={sessionScope} />
+        <SessionCustomCSS css={currentSession.customCSS} scope={sessionScope} priority />
       ) : null}
 
       <div className="story-shell-inner" ref={shellInnerRef}>
@@ -2409,7 +2411,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
             autoBottomLockRef.current = distanceFromBottom <= 12;
           }}
         >
-          <div className={`story-stage-inner${readingPanelVisible ? "" : " story-free-layout"}`}>
+          <div className={`story-stage-inner${storyStageAppearanceClass(uiPrefs)}`}>
 
             {/* ====== 顶部信息阅读卡片 ====== */}
             <div className="story-meta">
@@ -2500,7 +2502,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
                       {message.role !== "system" ? (
                         <div className="story-msg-head">
                           <div className="story-avatar-wrap">
-                            <Avatar src={avatarUrl} name={speakerName} size="md" />
+                            <Avatar cssSized src={avatarUrl} name={speakerName} size="md" />
                           </div>
                           <div className="story-msg-meta">
                             <span className="story-msg-name">{speakerName}</span>
@@ -2584,7 +2586,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
             {isGenerating && activeStreamingText ? (
               <article className="story-row story-streaming-row" data-role="assistant" {...storyMessageAppearanceAttributes(uiPrefs, "assistant")} aria-live="polite">
                 <div className="story-msg-head">
-                  <div className="story-avatar-wrap"><Avatar src={storyAvatar || undefined} name={storyDisplayName} size="md" /></div>
+                  <div className="story-avatar-wrap"><Avatar cssSized src={storyAvatar || undefined} name={storyDisplayName} size="md" /></div>
                   <div className="story-msg-meta"><span className="story-msg-name">{storyDisplayName}</span><span className="story-msg-time">正在输出</span></div>
                 </div>
                 <div className="story-bubble-wrap"><div className="story-bubble"><div className="story-streaming-text">{activeStreamingText}<span className="story-streaming-cursor" aria-hidden="true" /></div></div></div>
@@ -2864,6 +2866,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
 
       {cssModalOpen && <StoryAppearanceEditor key={currentSession.id} sessionId={currentSession.id}
         initialPrefs={uiPrefs} initialCSS={currentSession.customCSS || ""}
+        customFont={customFontSource ? '"StoryCustomFont", "Noto Serif SC", "Songti SC", serif' : undefined}
         userName={userIdentity?.name?.trim() || "我"} characterName={storyDisplayName}
         userAvatar={userIdentity?.avatarUrl || undefined} characterAvatar={storyAvatar || undefined}
         onSettingsChange={patch => applySessionUpdates({ uiPrefs: patch })}
