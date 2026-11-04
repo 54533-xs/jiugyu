@@ -274,9 +274,37 @@ export function applyListeningRoomReply(text: string, sessionId: string, actorId
         let notice = "";
         if (action === "退出") { endRoom(current); room = null; notice = "对方结束了一起听。"; }
         else if (current.status === "invited" && current.initiator !== "character") {
-            room = { ...current, status: action === "接受" ? "joined" : "declined", startedAt: Date.now() };
-            if (action === "接受") { startRanks(); beginAccounting(); }
-            notice = action === "接受" ? "对方加入了一起听。" : "对方拒绝了一起听邀请。";
+            const accept = action === "接受";
+            room = {
+                ...current,
+                status: accept ? "joined" : "declined",
+                startedAt: Date.now(),
+                ...(accept ? {
+                    lastGlowAt: undefined,
+                    glowEpoch: (current.glowEpoch || 0) + 1,
+                    ...(batchId ? { glowBatchId: batchId } : {})
+                } : {})
+            };
+            if (accept) {
+                startRanks();
+                beginAccounting();
+                const bridge = getMusicControlBridge();
+                if (bridge && !bridge.getState().isPlaying && bridge.getState().currentTrack) {
+                    bridge.resume();
+                }
+            }
+            notice = accept ? "对方加入了一起听。" : "对方拒绝了一起听邀请。";
+            const history = loadChatMessages(sessionId);
+            const inviteMsg = history.reverse().find(m => m.mediaData?.listeningInvite?.roomId === current.id);
+            if (inviteMsg?.mediaData?.listeningInvite) {
+                updateMessageMediaData(inviteMsg.id, {
+                    ...inviteMsg.mediaData,
+                    listeningInvite: {
+                        ...inviteMsg.mediaData.listeningInvite,
+                        response: accept ? "accepted" : "declined"
+                    }
+                });
+            }
         }
         if (notice) {
             pushChatMessage({ sessionId, role: "system", content: notice });
@@ -313,6 +341,7 @@ export async function respondToListeningInvitation(id: string, sessionId: string
         pushChatMessage({ sessionId, role: "system", content: accept ? "用户已接受一起听邀请。" : "用户暂未接受一起听邀请。" });
         emit();
         window.dispatchEvent(new CustomEvent("chat-messages-updated", { detail: { sessionId } }));
+        window.dispatchEvent(new CustomEvent("chat-room-trigger-reply", { detail: { sessionId } }));
         window.dispatchEvent(new CustomEvent(CHAT_REQUEST_REPLY_EVENT, { detail: { sessionId } }));
     } finally { resolving.delete(id); }
 }
