@@ -11,7 +11,7 @@ import { translateReasoningText } from "@/lib/reasoning-translate";
 import { MessageBubble, MediaDetailModal, prewarmStickerCache, BilingualTextBlock, isStandaloneHtmlPreviewContent, normalizeTextBubbleContent } from "./message-bubble";
 import { GeneratedImageErrorDialog } from "./generated-image-error-dialog";
 import { PhotoInputModal, TextPhotoModal, VoiceRecordModal, RedPacketModal, LocationInputModal, SystemInstructionModal } from "./rich-input-modals";
-import ChatMusicPanel, { ListeningStatus } from "@/components/music/chat-music-panel";
+import ChatMusicPanel from "@/components/music/chat-music-panel";
 import { getListeningRoom, inviteListeningRoom, inviteGroupListeningRoom, leaveListeningRoom, applyListeningRoomReply } from "@/lib/listen-together";
 import { EmojiPanel, StickerPanel } from "./emoji-panel";
 import { StickerSearchSuggest } from "./sticker-search-suggest";
@@ -7292,13 +7292,6 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                 />,
                 wrapperRef.current.parentElement,
             )}
-
-            <ListeningStatus
-                sessionId={session.id}
-                name={session.isGroup ? (session as any).groupName || "群聊" : character?.name || "对方"}
-                avatar={session.isGroup ? (session as any).groupAvatar : character?.avatarUrl}
-                onOpen={() => setShowMusicPanel(true)}
-            />
 
             {showMusicPanel && (
                 <ChatMusicPanel
