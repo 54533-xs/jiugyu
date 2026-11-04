@@ -30,14 +30,18 @@ import {
     loadMusicBg, saveMusicBg, clearMusicBg, fileToCompressedDataUrl, appBgStyle,
     MUSIC_BG_EVENT, type MusicBgConfig, type MusicPlayerBgMode,
 } from "@/lib/music-bg";
+import ListeningLibrary from "./listening-library";
+import { ChevronLeft, ChevronRight, Settings, Headphones, Search, Music } from "lucide-react";
+import privateStyles from "./music-private.module.css";
+import { MUSIC_HOME_EVENT, consumeMusicHomeRequest } from "@/lib/music-navigation";
 
 type Props = { onClose: () => void; headerAccessory?: ReactNode; initialTogether?: boolean; listeningSessionId?: string };
-type TabId = "recommend" | "mine" | "search" | "local";
+type TabId = "recommend" | "mine" | "search" | "local" | "together";
 
-export default function MusicApp({ onClose, headerAccessory }: Props) {
+export default function MusicApp({ onClose, headerAccessory, initialTogether = false, listeningSessionId }: Props) {
     const [tracks, setTracks] = useState<MusicTrack[]>([]);
     const [loading, setLoading] = useState(true);
-    const [tab, setTab] = useState<TabId>("local");
+    const [tab, setTab] = useState<TabId>(initialTogether ? "together" : "mine");
     const [hasNetease, setHasNetease] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [showCssEditor, setShowCssEditor] = useState(false);
@@ -73,9 +77,20 @@ export default function MusicApp({ onClose, headerAccessory }: Props) {
 
     useEffect(() => {
         loadAllTracks().then(t => { setTracks(t); setLoading(false); });
+        const returnHome = () => {
+            if (!consumeMusicHomeRequest()) return;
+            setTab("mine");
+            setActivePlaylist(null);
+            setDailyView(null);
+            setShowSettings(false);
+            setShowCssEditor(false);
+        };
+        window.addEventListener(MUSIC_HOME_EVENT, returnHome);
+        returnHome();
+
         const neteaseOk = isNeteaseConfigured();
         setHasNetease(neteaseOk);
-        if (neteaseOk) setTab("recommend");
+        if (neteaseOk && !initialTogether) setTab("recommend");
         setCustomCss(kvGet("music-custom-css") || "");
         // Load cached playlists immediately, then refresh from API
         if (neteaseOk) {
@@ -308,7 +323,7 @@ export default function MusicApp({ onClose, headerAccessory }: Props) {
                     </button>
                 </div>
                 <div className="music-header-title">
-                    {dailyView ? "每日推荐" : activePlaylist && tab === "recommend" ? "歌单详情" : tab === "recommend" ? "" : tab === "search" ? "搜索" : tab === "mine" ? "我的" : "本地音乐"}
+                    {dailyView ? "每日推荐" : activePlaylist && tab === "recommend" ? "歌单详情" : tab === "recommend" ? "发现" : tab === "search" ? "搜索" : tab === "mine" ? "我的" : tab === "together" ? "一起听" : "本地音乐"}
                 </div>
                 <div className="music-header-right">
                     <button className="music-header-action" onClick={() => setShowSettings(true)} title="设置">
@@ -320,6 +335,7 @@ export default function MusicApp({ onClose, headerAccessory }: Props) {
             </div>
 
             {/* Tab content */}
+            {tab === "together" && <ListeningLibrary heroActions={headerAccessory} heroSessionId={listeningSessionId} />}
             {tab === "recommend" && hasNetease && (dailyView ? (
                 <DailySongsPage
                     songs={dailyView}
@@ -458,31 +474,14 @@ export default function MusicApp({ onClose, headerAccessory }: Props) {
                 </div>
             )}
 
-            {/* Bottom tab bar */}
-            <div className="music-tabbar">
-                {hasNetease && (
-                    <button className="music-tabbar-item" {...(tab === "recommend" ? { "data-active": "" } : {})} onClick={() => { setTab("recommend"); setActivePlaylist(null); setDailyView(null); }}>
-                        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5V21h-6v-6h-6v6H3z" /></svg>
-                        <span>推荐</span>
-                    </button>
-                )}
-                {hasNetease && (
-                    <button className="music-tabbar-item" {...(tab === "search" ? { "data-active": "" } : {})} onClick={() => setTab("search")}>
-                        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-                        <span>搜索</span>
-                    </button>
-                )}
-                {hasNetease && (
-                    <button className="music-tabbar-item" {...(tab === "mine" ? { "data-active": "" } : {})} onClick={() => { setTab("mine"); setActivePlaylist(null); }}>
-                        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5" /></svg>
-                        <span>我的</span>
-                    </button>
-                )}
-                <button className="music-tabbar-item" {...(tab === "local" ? { "data-active": "" } : {})} onClick={() => { setTab("local"); setActivePlaylist(null); }}>
-                    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
-                    <span>本地</span>
-                </button>
-            </div>
+            {/* Three primary destinations; search and local remain child pages. */}
+            <nav className={"music-tabbar " + privateStyles.dockGlass} aria-label="音乐导航" data-selection={tab === "together" ? "1" : tab === "mine" || tab === "local" ? "2" : "0"}>
+                {([{ id: "recommend", name: "发现", icon: <Search size={20} /> }, { id: "together", name: "一起听", icon: <Headphones size={20} /> }, { id: "mine", name: "我的", icon: <Music size={20} /> }] as const).map(item => (
+                    <button key={item.id} className="music-tabbar-item" aria-current={(tab === item.id || (item.id === "recommend" && tab === "search") || (item.id === "mine" && tab === "local")) ? "page" : undefined}
+                        {...((tab === item.id || (item.id === "recommend" && tab === "search") || (item.id === "mine" && tab === "local")) ? { "data-active": "" } : {})}
+                        onClick={() => { setTab(item.id); setActivePlaylist(null); setDailyView(null); }}>{item.icon}<span>{item.name}</span></button>
+                ))}
+            </nav>
             </div>
 
             {/* Settings Modal */}
