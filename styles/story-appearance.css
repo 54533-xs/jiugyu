@@ -73,10 +73,10 @@
 .story-beautify-tabs button[aria-pressed="true"] { color: var(--c-story-heading,#1e293b); border-color: currentColor; font-weight: 600; }
 .story-beautify-preset { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: calc(12px * var(--app-text-scale,1)); }
 .story-beautify-preset select { min-width: 0; max-width: 60%; padding: 6px 8px; color: inherit; background: var(--c-story-bg-top,#fff); border: 1px solid var(--c-story-panel-border,#ddd); border-radius: 6px; }
-.story-beautify-range { display: grid; gap: 8px; margin: 13px 0; font-size: calc(12px * var(--app-text-scale,1)); }
-.story-beautify-range > span { display: flex; justify-content: space-between; gap: 10px; }
+.story-beautify-range { display: grid; grid-template-columns: minmax(0,1fr) minmax(100px,42%); align-items: center; column-gap: 20px; row-gap: 8px; margin: 13px 0; font-size: calc(12px * var(--app-text-scale,1)); }
+.story-beautify-range > label { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
 .story-beautify-range output { color: var(--c-story-sub,#64748b); font-variant-numeric: tabular-nums; }
-.story-beautify-range input { width: 100%; margin: 0; accent-color: var(--c-story-accent,#6688b5); min-height: 24px; }
+.story-beautify-range input { width: 100%; max-width: 160px; justify-self: end; margin: 0; accent-color: var(--c-story-accent,#6688b5); min-height: 24px; touch-action: pan-y; }
 .story-beautify-color { display: flex; align-items: center; gap: 10px; margin: 12px 0; font-size: calc(12px * var(--app-text-scale,1)); }
 .story-beautify-color label { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .story-beautify-color input { width: 36px; height: 28px; padding: 2px; border: 1px solid var(--c-story-panel-border,#ddd); border-radius: 6px; background: transparent; cursor: pointer; }
@@ -109,10 +109,10 @@
 :is(.story-app-shell,.story-beautify-preview)[data-story-controls-color] .story-multi-select-bar button { color: var(--story-controls-color); }
 :is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-header button,
 :is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-composer button,
-:is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-multi-select-bar button { opacity: var(--story-controls-opacity); }
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-multi-select-bar button { background: var(--story-controls-background); opacity: 1; box-shadow: none; border-color: transparent; }
 :is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-header button:disabled,
 :is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-composer button:disabled,
-:is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-multi-select-bar button:disabled { opacity: calc(var(--story-controls-opacity) * .48); }
+:is(.story-app-shell,.story-beautify-preview)[data-story-controls-opacity] .story-multi-select-bar button:disabled { opacity: .48; }
 :is(.story-app-shell,.story-beautify-preview)[data-story-header-avatar="hidden"] .story-header-person .ui-avatar { display: none; }
 
 /* All message states use these hooks: saved messages, streaming, and waiting. */

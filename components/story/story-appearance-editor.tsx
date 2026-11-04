@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { XMarkIcon } from "@heroicons/react/24/solid";
 import { Avatar } from "@/components/ui/primitives";
 import CSSSchemeBar from "@/components/ui/css-scheme-picker";
@@ -12,9 +12,40 @@ import { isStoryReadingPanelVisible, normalizeStoryChromeAppearance, storyChrome
 function RangeSetting({ label, value, min, max, step = 1, unit = "", onChange }: {
   label: string; value: number; min: number; max: number; step?: number; unit?: string; onChange: (value: number) => void;
 }) {
-  return <label className="story-beautify-range"><span>{label}<output>{value}{unit}</output></span>
-    <input aria-label={label} type="range" min={min} max={max} step={step} value={value} onChange={event => onChange(Number(event.target.value))} />
-  </label>;
+  const id = useId();
+  const touch = useRef<{ x: number; y: number; direction: "pending" | "horizontal" | "scroll"; value?: number } | null>(null);
+  return <div className="story-beautify-range"><label htmlFor={id}>{label}<output>{value}{unit}</output></label>
+    <input id={id} aria-label={label} type="range" min={min} max={max} step={step} value={value}
+      onPointerDown={event => { if (event.pointerType !== "touch") touch.current = null; }}
+      onKeyDown={() => { touch.current = null; }}
+      onTouchStart={event => {
+        const point = event.touches[0];
+        if (point) touch.current = { x: point.clientX, y: point.clientY, direction: "pending" };
+      }}
+      onTouchMove={event => {
+        const gesture = touch.current, point = event.touches[0];
+        if (!gesture || !point || gesture.direction !== "pending") return;
+        const dx = Math.abs(point.clientX - gesture.x), dy = Math.abs(point.clientY - gesture.y);
+        if (Math.max(dx, dy) < 8) return;
+        gesture.direction = dy >= dx ? "scroll" : "horizontal";
+        if (gesture.direction === "horizontal" && gesture.value !== undefined) onChange(gesture.value);
+      }}
+      onTouchEnd={() => {
+        const gesture = touch.current;
+        if (gesture?.direction === "pending" && gesture.value !== undefined) onChange(gesture.value);
+        // Keep cancelled gestures blocked until the next intentional input; some browsers dispatch a late change.
+        if (gesture?.direction !== "scroll") touch.current = null;
+      }}
+      onTouchCancel={() => { if (touch.current) touch.current.direction = "scroll"; }}
+      onChange={event => {
+        const next = Number(event.target.value), gesture = touch.current;
+        if (gesture && gesture.direction !== "horizontal") {
+          if (gesture.direction === "pending") gesture.value = next;
+          return;
+        }
+        onChange(next);
+      }} />
+  </div>;
 }
 
 export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, characterName, userAvatar, characterAvatar, onSettingsChange, onCSSChange, onApplyAppearance, onClose }: {
@@ -112,9 +143,9 @@ export function StoryAppearanceEditor({ initialPrefs, initialCSS, userName, char
       </select></label>
 
       <details className="story-beautify-card story-beautify-bars"><summary>顶栏、底栏与按钮</summary>
-        <p>两栏共用透明度与文字、图标颜色，设置后立即保存应用。</p>
+        <p>两栏共用背景透明度与文字、图标颜色。按钮透明度只改变背景小方块，设置后立即保存应用。</p>
         <RangeSetting label="顶栏与底栏背景透明度" value={100 - chrome.barOpacity} min={0} max={100} unit="％" onChange={value => patchChrome({ barOpacity: 100 - value })} />
-        <RangeSetting label="两栏按钮透明度" value={100 - chrome.buttonOpacity} min={0} max={100} unit="％" onChange={value => patchChrome({ buttonOpacity: 100 - value })} />
+        <RangeSetting label="两栏按钮背景透明度" value={100 - chrome.buttonOpacity} min={0} max={100} unit="％" onChange={value => patchChrome({ buttonOpacity: 100 - value })} />
         <div className="story-beautify-color"><label><span>两栏文字与图标颜色</span><input type="color" aria-label="两栏文字与图标颜色" value={chrome.controlsColor || palette.textColor} onChange={event => patchChrome({ controlsColor: event.target.value })} /></label>
           {chrome.controlsColor ? <button type="button" onClick={() => patchChrome({ controlsColor: undefined })}>跟随主题</button> : <small>跟随主题</small>}</div>
         <label className="story-beautify-check"><input type="checkbox" aria-label="显示顶栏头像" checked={!chrome.hideHeaderAvatar} onChange={event => patchChrome({ hideHeaderAvatar: !event.target.checked })} /><span>显示左上角角色头像</span></label>

@@ -1332,11 +1332,12 @@ CSS 添加的字符仅作装饰，不写入消息或发送给模型。
 .story-header-person span { display: none; }
 */
 
-/* 09 顶栏与底栏按钮统一配色、透明度、圆角、尺寸
+/* 09 顶栏与底栏按钮统一配色、背景透明度、圆角、尺寸
+rgba 的最后一个数字仅控制按钮背景；图标和文字保持清晰。
 .story-header button,
 .story-composer button {
-  color: #64748b !important; opacity: 0.85 !important;
-  background: #ffffff; border: 1px solid #eeeeee; border-radius: 10px; box-shadow: none;
+  color: #64748b !important; opacity: 1;
+  background: rgba(255,255,255,0.85) !important; border: 1px solid #eeeeee; border-radius: 10px; box-shadow: none;
 }
 .story-header button:disabled,
 .story-composer button:disabled { opacity: 0.4 !important; }

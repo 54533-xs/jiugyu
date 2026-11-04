@@ -19,8 +19,9 @@ export type StoryBubbleAppearance = {
 };
 export type StoryAppearance = { user?: StoryBubbleAppearance; assistant?: StoryBubbleAppearance; messageGap?: number };
 export type StoryChromeAppearance = {
-  /** 两栏共用的背景与按钮不透明度，0–100；未配置时沿用原主题。 */
+  /** 两栏共用的背景不透明度，0–100；未配置时沿用原主题。 */
   barOpacity?: number;
+  /** 仅按钮背景不透明度，不影响文字和图标。 */
   buttonOpacity?: number;
   controlsColor?: string;
   hideHeaderAvatar?: boolean;
@@ -91,7 +92,7 @@ export function storyAppearanceStyle(prefs: StoryAppearancePrefs): CSSProperties
     style["--story-header-background"] = `color-mix(in srgb, var(--c-story-bg-top, #ffffff) ${chrome.barOpacity}%, transparent)`;
     style["--story-footer-background"] = `color-mix(in srgb, var(--c-story-input-bar, #ffffff) ${chrome.barOpacity}%, transparent)`;
   }
-  if (typeof prefs.chrome?.buttonOpacity === "number") style["--story-controls-opacity"] = chrome.buttonOpacity / 100;
+  if (typeof prefs.chrome?.buttonOpacity === "number") style["--story-controls-background"] = `color-mix(in srgb, var(--c-story-bubble-bg, #ffffff) ${chrome.buttonOpacity}%, transparent)`;
   if (chrome.controlsColor) style["--story-controls-color"] = chrome.controlsColor;
   for (const role of ["user", "assistant"] as const) {
     const value = normalizeStoryBubbleAppearance(prefs.appearance?.[role]);
