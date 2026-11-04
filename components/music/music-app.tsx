@@ -14,6 +14,7 @@ import {
     searchNetease, getNeteasePlayInfo, getNeteaseLyrics, getNeteaseSongDetail,
     testNeteaseConnection, getQrKey, getQrImage, checkQrStatus, checkLoginStatus,
     getUserPlaylists, getPlaylistTracks, saveNeteaseCookie, clearNeteaseCookie,
+    loadNeteaseUser, clearNeteaseUser,
     getDailyRecommendSongs, getHotSearchDetail, getPersonalizedPlaylists,
     getRecommendResource, getToplists, getUserRecordWithCounts,
     getPlaylistDetail, getUserDetail, subscribePlaylist,
@@ -1570,7 +1571,7 @@ function MusicSettingsTab({
     const [qrKey, setQrKey] = useState<string | null>(null);
     const [qrStatus, setQrStatus] = useState<string>("");
     const [qrPolling, setQrPolling] = useState(false);
-    const [loginNickname, setLoginNickname] = useState<string | null>(null);
+    const [loginNickname, setLoginNickname] = useState<string | null>(() => loadNeteaseUser()?.nickname || null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Custom background state (app pages + player each have their own image)
@@ -1715,6 +1716,7 @@ function MusicSettingsTab({
         setQrStatus("");
         setLoginNickname(null);
         clearNeteaseCookie();
+        clearNeteaseUser();
         clearMusicCloudSyncData();
         onSaved();
     };
