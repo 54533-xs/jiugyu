@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeft, Headphones, Music2, Pause, Play, ChevronDown, X } from "lucide-react";
 import MusicApp from "./music-app";
-import { ListeningPlayerPresence } from "./listening-presence";
-import { ListeningDuet, ListeningDuration, useListeningPresence } from "./listening-presence";
+import { ListeningPlayerPresence, useListeningPresence } from "./listening-presence";
 import { useMusicControlsOptional } from "@/lib/music-context";
 import { getListeningRoom, subscribeListeningRoom, joinGroupListeningAsUser } from "@/lib/listen-together";
 import styles from "./chat-music-panel.module.css";
@@ -77,7 +76,8 @@ export function ListeningStatus({ sessionId, name, avatar, onOpen }: { sessionId
 }
 
 type Props = { sessionId: string; characterId?: string; name: string; avatar?: string; busy: boolean; onClose: () => void; onInvite: (track?: MusicTrack) => void; onLeave: () => void; onRetry: () => void };
-export default function ChatMusicPanel({ sessionId, characterId, name, avatar, busy, onClose, onInvite, onLeave, onRetry }: Props) {
+export default function ChatMusicPanel(props: Props) {
+    const { sessionId, onClose, onInvite } = props;
     const presence = useListeningPresence();
     const room = useListeningRoom();
     const mine = room?.sessionId === sessionId ? room : null;
@@ -110,27 +110,13 @@ export default function ChatMusicPanel({ sessionId, characterId, name, avatar, b
         }, 80);
     };
 
-    const controls = <div className={`${styles.accessory} music-hero-accessory`}>
-        {<div className={`${styles.invitation} music-hero-invitation`}>
-            <ListeningDuet userAvatar={presence.userAvatar} userName={presence.userName} avatar={mine ? presence.avatar : avatar} name={name} joined={mine?.status === "joined"} playing={!!player?.isPlaying} />
-            <span className={styles.invitationCopy}><strong>{mine?.status === "joined" ? `和${name}一起听` : `邀请${name}一起听`}</strong><small>{mine?.status === "joined" ? <ListeningDuration startedAt={mine.startedAt} /> : mine?.status === "invited" ? "等待回应" : mine?.status === "declined" ? "对方这次没有加入" : "选一首想一起听的歌"}</small></span>
-            {mine?.isGroup && mine.userJoined === false ? <button type="button" onClick={() => joinGroupListeningAsUser(sessionId)}>加入</button> : mine && mine.status !== "declined" ? <>
-                {mine.status === "invited" && !busy && <button type="button" onClick={onRetry}>等回复</button>}
-                <button type="button" onClick={onLeave} aria-label={mine.status === "joined" ? (mine.isGroup ? "退出一起听" : "结束一起听") : "取消邀请"}>{mine.status === "joined" ? "结束一起听" : "取消邀请"}</button>
-            </> : <button type="button" disabled={busy || !!(room && room.status !== "declined")} onClick={() => {
-                setNotice("");
-                const track = player?.currentTrack;
-                if (!track?.title) {
-                    setShowPicker(true);
-                    return;
-                }
-                try { onInvite(track); }
-                catch (error) { setNotice(error instanceof Error ? error.message : "邀请失败，请重试"); }
-            }}>{busy ? "正在回复" : "邀请"}</button>}
-        </div>}
-        {room && !mine && room.status !== "declined" && <p className={styles.note}>已有一起听会话，请先回原聊天结束。</p>}
-        {mine?.isGroup && <ListeningPlayerPresence />}
-    </div>;
+    const hasControls = Boolean((room && !mine && room.status !== "declined") || (mine?.isGroup));
+    const controls = hasControls ? (
+        <div className={`${styles.accessory} music-hero-accessory`}>
+            {room && !mine && room.status !== "declined" && <p className={styles.note}>已有一起听会话，请先回原聊天结束。</p>}
+            {mine?.isGroup && <ListeningPlayerPresence />}
+        </div>
+    ) : undefined;
     return <div ref={root} className={styles.panel} onPointerDown={event => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="音乐与一起听" tabIndex={-1} onKeyDown={event => {
         if (event.key === "Escape") { event.stopPropagation(); onClose(); }
     }}>
