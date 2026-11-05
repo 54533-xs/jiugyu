@@ -1,6 +1,5 @@
 import type { UserIdentity } from "@/components/settings/user-identity";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
-import { loadUserIdentities } from "./settings-storage";
 
 const CHAT_ALT_ACCOUNTS_KEY = "ai_phone_chat_alt_accounts_v1";
 export const CHAT_ALT_ACCOUNTS_UPDATED_EVENT = "chat-alt-accounts-updated";
@@ -9,7 +8,7 @@ registerKvMigration(CHAT_ALT_ACCOUNTS_KEY);
 
 export type ChatAltAccount = {
     id: string;
-    /** 小号从哪个完整用户身份派生；角色与世界范围均以此身份的绑定为准。 */
+    /** 界面收纳归属，不继承该身份的人设。 */
     userIdentityId: string;
     nickname: string;
     gender: string;
@@ -17,6 +16,8 @@ export type ChatAltAccount = {
     signature: string;
     /** 独立人物设定与背景，完全隔离主号人设，防掉马 */
     persona?: string;
+    avatarUrl?: string;
+    deletedAt?: string;
     /** 该小号自己的好友集合。主号通讯录不会被修改。 */
     friendCharacterIds: string[];
     createdAt: string;
@@ -36,6 +37,8 @@ function normalizeAccount(value: Partial<ChatAltAccount>): ChatAltAccount | null
         age: typeof value.age === "string" ? value.age.trim() : "",
         signature: typeof value.signature === "string" ? value.signature.trim() : "",
         persona: typeof value.persona === "string" ? value.persona.trim() : "",
+        avatarUrl: typeof value.avatarUrl === "string" ? value.avatarUrl : undefined,
+        deletedAt: typeof value.deletedAt === "string" ? value.deletedAt : undefined,
         friendCharacterIds: Array.from(new Set(Array.isArray(value.friendCharacterIds)
             ? value.friendCharacterIds.filter((item): item is string => typeof item === "string" && !!item.trim()).map(item => item.trim())
             : [])),
@@ -108,6 +111,17 @@ export function findChatAltAccount(accountId?: string | null): ChatAltAccount | 
     return loadChatAltAccounts().find(item => item.id === accountId) || null;
 }
 
+export function updateChatAltAccount(accountId: string, patch: Partial<Pick<ChatAltAccount, "userIdentityId" | "nickname" | "gender" | "age" | "signature" | "avatarUrl">>): void {
+    saveChatAltAccounts(loadChatAltAccounts().map(account => account.id === accountId
+        ? { ...account, ...patch, updatedAt: new Date().toISOString() } : account));
+}
+
+/** 保留身份资料供历史记忆解析，删除后不再显示为可切换账号。 */
+export function deleteChatAltAccount(accountId: string): void {
+    saveChatAltAccounts(loadChatAltAccounts().map(account => account.id === accountId
+        ? { ...account, deletedAt: new Date().toISOString() } : account));
+}
+
 export function addChatAltAccountFriend(accountId: string, characterId: string): void {
     const accounts = loadChatAltAccounts();
     const index = accounts.findIndex(item => item.id === accountId);
@@ -148,9 +162,9 @@ export function resolveChatAltAccountIdentity(accountId?: string | null): UserId
         account.persona ? `- 人物背景与设定：\n${account.persona}` : "",
     ].filter(Boolean).join("\n");
     return {
-        ...base,
         id: `chat-alt-identity:${account.id}`,
         name: account.nickname,
+        avatarUrl: account.avatarUrl,
         gender: account.gender || "未填写",
         age: account.age || "未填写",
         bio: account.signature,

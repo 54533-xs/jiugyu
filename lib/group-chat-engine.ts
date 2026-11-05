@@ -53,6 +53,7 @@ import {
     loadRegexes,
 } from "./settings-storage";
 import { resolveChatAccountUserIdentity } from "./chat-scope-storage";
+import { buildChineseThinkingPrompt, withChineseThinkingPrompt } from "./chinese-thinking-prompt";
 import {
     assembleGroupPromptPayload,
     formatRichMediaForHistory,
@@ -70,7 +71,7 @@ import { loadMemoryConfig, incrementEventCounter } from "./memory-storage";
 import { retrieveCoreMemoriesForPrompt, retrieveMemoriesForPrompt } from "./memory-service";
 import { formatCoreMemories, formatLongTermMemories } from "./memory-injector";
 import { maybeRunSummarization } from "./memory-summarizer";
-import { prepareShortTermContext, prepareGroupShortTermContext } from "./short-term-assembler";
+import { loadNativeTimelineAsync, prepareShortTermContext, prepareGroupShortTermContext, type NativeTimelineEntry } from "./short-term-assembler";
 import { parseActionTags, dispatchActions } from "./action-parser";
 import { getCustomStickerExample, loadCustomStickers } from "./custom-sticker-storage";
 import { formatCustomAppChatDirectivesForPrompt } from "./custom-app-chat-directives";
@@ -295,6 +296,7 @@ async function buildGroupChatPromptMessages(
     history: ChatMessage[],
     options?: GroupChatPromptBuildOptions,
 ): Promise<{ llmMessages: LLMMessage[]; config: ApiConfig; preset: PresetConfig | null; regexes: RegexConfig[]; nameToId: Map<string, string>; memberNames: string[]; enabledTools: import("./tool-storage").EnabledTool[]; userName: string; appTags: string[] }> {
+    session = loadChatSessions().find(item => item.id === session.id) ?? session;
     const chars = loadCharacters();
     const charMap = new Map(chars.map(c => [c.id, c]));
     const participantIds = session.participantIds || [];
@@ -330,12 +332,16 @@ async function buildGroupChatPromptMessages(
         ? [...baseAppTags, "spectator"]
         : baseAppTags;
     const isOfflineMode = activeAppTags.includes("offline");
+    const chineseThinkingEnabled = session.chineseThinkingPromptEnabled === true && !isOfflineMode && !promptProfile
+        && activeAppTags.includes("group_chat");
+    preset = withChineseThinkingPrompt(preset, chineseThinkingEnabled);
 
     const memConfig = loadMemoryConfig();
     const allWorldBooks = loadWorldBooks();
 
     const now = new Date();
     const memberTimeContexts: Record<string, ReturnType<typeof buildCharacterTimeContext>> = {};
+    const timelines = new Map<string, NativeTimelineEntry[]>();
     const memberDataPromises = participantIds.map(async (charId): Promise<GroupMemberData | null> => {
         const character = charMap.get(charId);
         if (!character) return null;
@@ -347,7 +353,14 @@ async function buildGroupChatPromptMessages(
         const worldBooks = promptProfile?.enableWorldBooks === false
             ? []
             : (charSlot.worldBookIds || []).map(id => allWorldBooks.find(w => w.id === id)).filter(Boolean) as typeof allWorldBooks;
+        const timeline = await loadNativeTimelineAsync(charId, {
+            appId: "group_chat", userName,
+            excludeOfflineSessionId: options?.excludeOfflineSessionId,
+            promptTimestampOptions: getPromptTimestampOptionsForTimeContext(memberTimeContext),
+        });
+        timelines.set(charId, timeline);
         const { wbActivationContext } = prepareShortTermContext(charId, "group_chat", {
+            timeline,
             userName,
             excludeGroupSessionId: isOfflineMode ? undefined : session.id,
             excludeOfflineSessionId: options?.excludeOfflineSessionId,
@@ -395,6 +408,7 @@ async function buildGroupChatPromptMessages(
         wbActivationContext,
         unifiedRecentItems,
     } = prepareGroupShortTermContext(participantIds, annotatedHistory, {
+        timelines,
         userName,
         excludeGroupSessionId: isOfflineMode ? undefined : session.id,
         excludeOfflineSessionId: options?.excludeOfflineSessionId,
@@ -501,6 +515,12 @@ async function buildGroupChatPromptMessages(
         offlineSummaryTag: preset?.story_summary_tag?.trim() || "summary",
         nativeToolHistory: usesNativeActions,
     });
+    if (chineseThinkingEnabled) {
+        llmMessages.push({ role: "system", content: buildChineseThinkingPrompt(
+            userName, preset?.online_thinking_tag?.trim() || "thinking", memberNames,
+            session.chineseThinkingPromptLength,
+        ) });
+    }
     if (promptProfile?.output === "plain_text") {
         llmMessages.push({
             role: "system",
