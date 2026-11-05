@@ -29,6 +29,39 @@ function handleShellOverlayEvent(e: Event) {
   }
 }
 
+/** 是否运行在安卓壳环境中 */
+export function isShellEnvironment(): boolean {
+  return typeof navigator !== "undefined" && navigator.userAgent.includes("FloatShell/");
+}
+
+/** 打开系统无障碍设置页 */
+export function openAccessibilitySettings(): boolean {
+  if (typeof window === "undefined") return false;
+  const shell = (window as unknown as {
+    AndroidShell?: {
+      openSystemSettings?: (which: string) => boolean;
+      openAppSettings?: () => void;
+    };
+  }).AndroidShell;
+  if (!shell) return false;
+  if (typeof shell.openSystemSettings === "function") {
+    try {
+      return Boolean(shell.openSystemSettings("accessibility"));
+    } catch {
+      // ignore
+    }
+  }
+  if (typeof shell.openAppSettings === "function") {
+    try {
+      shell.openAppSettings();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 /** 确保全局事件监听器已挂载（幂等） */
 export function ensureShellOverlayListener(): void {
   if (typeof window === "undefined") return;
