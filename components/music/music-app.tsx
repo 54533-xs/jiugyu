@@ -378,15 +378,7 @@ export default function MusicApp({ onClose, headerAccessory, initialTogether = f
                 <div className="music-header-title">
                     {dailyView ? "每日推荐" : activePlaylist && tab === "recommend" ? "歌单详情" : tab === "recommend" ? "发现" : tab === "search" ? "搜索" : tab === "mine" ? "我的" : tab === "together" ? "一起听" : "本地音乐"}
                 </div>
-                <div className="music-header-right" style={{ display: "flex", gap: "8px", alignItems: "center", justifySelf: "end" }}>
-                    <button
-                        className="music-header-action"
-                        onClick={handleToggleTheme}
-                        title={resolvedTheme === "light" ? "切换至夜间模式" : "切换至日间模式"}
-                        aria-label={resolvedTheme === "light" ? "切换至夜间模式" : "切换至日间模式"}
-                    >
-                        {resolvedTheme === "light" ? <Moon size={20} strokeWidth={1.5} /> : <Sun size={20} strokeWidth={1.5} />}
-                    </button>
+                <div className="music-header-right">
                     <button className="music-header-action" onClick={() => setShowSettings(true)} title="设置" aria-label="设置">
                         <Settings size={20} strokeWidth={1.5} />
                     </button>
@@ -1585,6 +1577,17 @@ function MusicSettingsTab({
         const cfg = loadMusicBg();
         return cfg.playerImage.startsWith("data:") ? "" : cfg.playerImage;
     });
+    const [lyricSize, setLyricSize] = useState<number>(() => {
+        const stored = parseInt(kvGet("music-lyric-font-size") || "15", 10);
+        return Number.isFinite(stored) && stored >= 10 && stored <= 32 ? stored : 15;
+    });
+
+    const handleLyricSize = (size: number) => {
+        const clamped = Math.max(12, Math.min(26, size));
+        setLyricSize(clamped);
+        kvSet("music-lyric-font-size", String(clamped));
+        window.dispatchEvent(new CustomEvent("music-lyric-size-change", { detail: clamped }));
+    };
     const bgFileRef = useRef<HTMLInputElement>(null);
     const playerFileRef = useRef<HTMLInputElement>(null);
 
@@ -1768,6 +1771,28 @@ function MusicSettingsTab({
                             <Monitor size={15} strokeWidth={1.8} aria-hidden="true" />
                             <span>跟随系统</span>
                         </button>
+                    </div>
+                </div>
+
+                <div className="music-settings-section">
+                    <div className="music-settings-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div className="music-settings-label">播放页歌词字号</div>
+                        <span style={{ fontSize: "calc(11.5px*var(--app-text-scale,1))", color: "var(--c-music-primary)", fontWeight: 600 }}>{lyricSize}px</span>
+                    </div>
+                    <div className="music-settings-hint">拖动滑块调整播放器歌词大小（默认 15px）</div>
+                    <input
+                        type="range"
+                        className="music-bg-range"
+                        min={12}
+                        max={26}
+                        step={1}
+                        value={lyricSize}
+                        onChange={e => handleLyricSize(parseInt(e.target.value, 10))}
+                    />
+                    <div className="music-settings-actions" style={{ marginTop: 6, display: "flex", gap: "6px" }}>
+                        <button className="music-settings-btn" onClick={() => handleLyricSize(13)}>较小 13px</button>
+                        <button className="music-settings-btn" onClick={() => handleLyricSize(15)}>标准 15px</button>
+                        <button className="music-settings-btn" onClick={() => handleLyricSize(18)}>较大 18px</button>
                     </div>
                 </div>
 

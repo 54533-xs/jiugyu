@@ -110,6 +110,22 @@ export default function MusicPlayer() {
         return () => window.removeEventListener(MUSIC_BG_EVENT, handleBgChange);
     }, []);
 
+    const [lyricFontSize, setLyricFontSize] = useState<number>(() => {
+        const stored = parseInt((typeof window !== "undefined" && kvGet("music-lyric-font-size")) || "15", 10);
+        return Number.isFinite(stored) && stored >= 10 && stored <= 32 ? stored : 15;
+    });
+
+    useEffect(() => {
+        const handleSizeChange = (e: Event) => {
+            const size = (e as CustomEvent<number>).detail;
+            if (typeof size === "number" && size >= 10 && size <= 32) {
+                setLyricFontSize(size);
+            }
+        };
+        window.addEventListener("music-lyric-size-change", handleSizeChange);
+        return () => window.removeEventListener("music-lyric-size-change", handleSizeChange);
+    }, []);
+
     useEffect(() => {
         const timers = [300, 1200, 3000].map(ms => setTimeout(() => {
             const stored = kvGet("music-player-style");
@@ -468,6 +484,7 @@ export default function MusicPlayer() {
         "--mp-c1": palette[0],
         "--mp-c2": palette[1],
         "--mp-c3": palette[2],
+        "--mp-lyric-font-size": `${lyricFontSize}px`,
         ...(customBg || {}),
     } as React.CSSProperties;
 
