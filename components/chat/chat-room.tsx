@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, Fragment, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, Fragment, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChatSession, ChatMessage, CHAT_APP_SETTINGS_UPDATED_EVENT, CHAT_INITIAL_VISIBLE_MESSAGE_COUNT, CHAT_LOAD_MORE_MESSAGE_COUNT, CHAT_REQUEST_REPLY_EVENT, loadChatAppSettings, loadChatMessages, loadChatContacts, loadChatSessions, saveChatSessions, pushChatMessage, updateChatMessage, deleteChatMessage, deleteChatMessagesFrom, deleteChatMessagesByIds, retractChatMessage, editChatMessage, updateMessageMediaData, replaceResponseBatchWithParts, replaceGroupResponseRound, isReadingDiscussMessage, isSystemInstructionMessage, getSystemInstructionDisplayContent, createResponseBatchId, createResponseRoundId, getLatestStateValues, getLatestCharacterStateValues, compareChatMessages, isSessionStreamingEnabled, resolveChatBackgroundImage, resolveChatCharacterAvatar, resolveChatUserAvatar } from "@/lib/chat-storage";
 import { cleanStreamText, splitStreamPreviewSegments, stripLiteralTexts, stripXmlTagBlocks } from "@/lib/stream-preview";
 import type { StateValue } from "@/lib/chat-storage";
