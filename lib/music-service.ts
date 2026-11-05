@@ -332,17 +332,40 @@ export async function getNeteasePlayUrl(songId: number): Promise<string | null> 
     return info.url;
 }
 
+export type NeteaseLyricData = {
+    lyrics: string;
+    tlyrics: string;
+};
+
+/** Get both original and translated lyrics for a Netease song */
+export async function getNeteaseLyricData(songId: number): Promise<NeteaseLyricData> {
+    const base = neteaseBase();
+    if (base) {
+        try {
+            const resp = await fetch(withNeteaseParams(`${base}/lyric?id=${songId}`));
+            const data = await resp.json();
+            const lyrics = typeof data?.lrc?.lyric === "string" ? data.lrc.lyric : "";
+            const tlyrics = typeof data?.tlyric?.lyric === "string" ? data.tlyric.lyric : "";
+            if (lyrics) {
+                return { lyrics, tlyrics };
+            }
+        } catch { /* try fallback */ }
+    }
+    // Fallback: meting lrc
+    try {
+        const resp = await fetch(`https://api.injahow.cn/meting/?type=lrc&id=${songId}`, { signal: AbortSignal.timeout(3500) });
+        const text = await resp.text();
+        if (text && text.includes("[")) {
+            return { lyrics: text, tlyrics: "" };
+        }
+    } catch { /* ignore */ }
+    return { lyrics: "", tlyrics: "" };
+}
+
 /** Get lyrics for a Netease song */
 export async function getNeteaseLyrics(songId: number): Promise<string> {
-    const base = neteaseBase();
-    if (!base) return "";
-    try {
-        const resp = await fetch(withNeteaseParams(`${base}/lyric?id=${songId}`));
-        const data = await resp.json();
-        return data?.lrc?.lyric || "";
-    } catch {
-        return "";
-    }
+    const data = await getNeteaseLyricData(songId);
+    return data.lyrics;
 }
 
 /** Get song detail (cover, artist ids, etc.) */

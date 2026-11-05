@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Search, X, Music, Play, Loader2 } from "lucide-react";
 import {
-    searchNetease, getDailyRecommendSongs, getNeteasePlayInfo,
+    searchNetease, getDailyRecommendSongs, getNeteasePlayInfo, getNeteaseLyricData,
     type NeteaseSearchResult
 } from "@/lib/music-service";
 import { loadAllTracks, type MusicTrack } from "@/lib/music-storage";
@@ -57,13 +57,18 @@ export function ListeningSongPicker({ onClose, onSelectTrack }: Props) {
         if (selectingId) return;
         setSelectingId(`netease_${song.id}`);
         try {
-            const info = await getNeteasePlayInfo(song.id);
+            const [info, lyricData] = await Promise.all([
+                getNeteasePlayInfo(song.id).catch(() => ({ url: null, trial: false, reason: "" })),
+                getNeteaseLyricData(song.id).catch(() => ({ lyrics: "", tlyrics: "" })),
+            ]);
             const track: MusicTrack = {
                 id: `netease_${song.id}`,
                 title: song.name,
                 artist: song.artists,
                 duration: song.duration / 1000,
                 coverUrl: song.coverUrl,
+                lyrics: lyricData.lyrics || undefined,
+                tlyrics: lyricData.tlyrics || undefined,
                 liked: false,
                 addedAt: new Date().toISOString(),
             };

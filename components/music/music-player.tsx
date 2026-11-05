@@ -250,7 +250,10 @@ export default function MusicPlayer() {
     }, [showMusicToast]);
 
     // ── Parse LRC lyrics ──
-    const parsedLyrics = useMemo(() => parseTimedLyrics(player.currentTrack?.lyrics || ""), [player.currentTrack?.lyrics]);
+    const parsedLyrics = useMemo(
+        () => parseTimedLyrics(player.currentTrack?.lyrics || "", player.currentTrack?.tlyrics || ""),
+        [player.currentTrack?.lyrics, player.currentTrack?.tlyrics]
+    );
     const [selectedLyric, setSelectedLyric] = useState<MusicListeningContext | null>(null);
     const [pressingLyric, setPressingLyric] = useState<number | null>(null);
     const [activeLyricIdx, setActiveLyricIdx] = useState(-1);
@@ -600,7 +603,12 @@ export default function MusicPlayer() {
                                                         e.preventDefault(); e.stopPropagation(); if (line.text.trim()) selectLyric(line);
                                                     }
                                                 }}
-                                            >{line.text || " "}</button>
+                                            >
+                                                <span className="mp-lyric-orig">{line.text || " "}</span>
+                                                {line.translation ? (
+                                                    <span className="mp-lyric-trans">{line.translation}</span>
+                                                ) : null}
+                                            </button>
                                         </div>
                                     );
                                 })}
