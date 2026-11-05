@@ -2,7 +2,7 @@
 import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { getListeningRoom, subscribeListeningRoom, leaveListeningRoom, joinGroupListeningAsUser } from "@/lib/listen-together";
 import { loadCharacters } from "@/lib/character-storage";
-import { loadChatSessions, pushChatMessage } from "@/lib/chat-storage";
+import { loadChatSessions, pushChatMessage, resolveChatUserAvatar } from "@/lib/chat-storage";
 import { resolveUserIdentity } from "@/lib/settings-storage";
 import { useMusicControlsOptional } from "@/lib/music-context";
 import { extractListeningColor, LISTENING_COLOR_FALLBACK } from "@/lib/listening-cover-color";
@@ -15,6 +15,7 @@ export function useListeningPresence() {
     const character = room ? characters.find(c => c.id === room.characterId) : null;
     const session = room ? loadChatSessions().find(s => s.id === room.sessionId) : null;
     const user = resolveUserIdentity(character?.id);
+    const userAvatarUrl = resolveChatUserAvatar(session, (user as any)?.avatarUrl || (user as any)?.avatar);
     const members = room?.isGroup ? (room.members || []).map(m => { const c = characters.find(c => c.id === m.characterId); return { ...m, name: c?.name || "群成员", avatar: c?.chatAvatar || c?.avatar }; }) : [];
     return {
         members,
@@ -22,7 +23,7 @@ export function useListeningPresence() {
         name: room?.isGroup ? (session as any)?.groupName || "群聊" : (session as any)?.alias || character?.name || "对方",
         avatar: room?.isGroup ? (session as any)?.groupAvatar : (character?.chatAvatar || character?.avatar),
         userName: user?.name || "你",
-        userAvatar: user?.avatar || null
+        userAvatar: userAvatarUrl || null
     };
 }
 
