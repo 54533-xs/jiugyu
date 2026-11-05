@@ -17,10 +17,10 @@ import {
 import {
     CHAT_ALT_ACCOUNTS_UPDATED_EVENT,
     createChatAltAccount,
-    updateChatAltAccount,
+    deleteChatAltAccount,
     loadChatAltAccounts,
     updateChatAltAccount,
-    deleteChatAltAccount,
+    type ChatAltAccount,
 } from "@/lib/chat-alt-account-storage";
 
 export function ChatScopeSwitcher({ onScopeChange }: { onScopeChange?: (scope: ChatScopeState) => void }) {
@@ -29,7 +29,21 @@ export function ChatScopeSwitcher({ onScopeChange }: { onScopeChange?: (scope: C
     const [scope, setScope] = useState<ChatScopeState>(() => loadChatScope());
     const [creatingAccount, setCreatingAccount] = useState(false);
     const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
-    const [accountDraft, setAccountDraft] = useState({ userIdentityId: "", nickname: "", gender: "", age: "", signature: "", avatarUrl: "" });
+    const [accountDraft, setAccountDraft] = useState({ userIdentityId: "", nickname: "", gender: "", age: "", signature: "", avatarUrl: "", persona: "" });
+
+    const startEditAccount = (account: ChatAltAccount) => {
+        setEditingAccountId(account.id);
+        setAccountDraft({
+            userIdentityId: account.userIdentityId,
+            nickname: account.nickname,
+            gender: account.gender || "",
+            age: account.age || "",
+            signature: account.signature || "",
+            avatarUrl: account.avatarUrl || "",
+            persona: account.persona || "",
+        });
+        setCreatingAccount(true);
+    };
 
     useEffect(() => {
         const sync = () => setScope(loadChatScope());
@@ -125,25 +139,10 @@ export function ChatScopeSwitcher({ onScopeChange }: { onScopeChange?: (scope: C
                                                         update({ chatAccountId: account.id, userIdentityId: account.userIdentityId, worldId: null });
                                                         setExpanded(null);
                                                     }}
-                                                    onEdit={() => {
-                                                        setAccountDraft({
-                                                            id: account.id,
-                                                            userIdentityId: account.userIdentityId,
-                                                            nickname: account.nickname,
-                                                            gender: account.gender || "",
-                                                            age: account.age || "",
-                                                            signature: account.signature || "",
-                                                            persona: account.persona || "",
-                                                        });
-                                                        setCreatingAccount(true);
-                                                    }}
+                                                    onEdit={() => startEditAccount(account)}
                                                 />
                                                 <div className="flex justify-end gap-3 px-3 pb-2 ts-12">
-                                                    <button type="button" onClick={() => {
-                                                        setEditingAccountId(account.id);
-                                                        setAccountDraft({ ...account, avatarUrl: account.avatarUrl || "" });
-                                                        setCreatingAccount(true);
-                                                    }}>编辑</button>
+                                                    <button type="button" onClick={() => startEditAccount(account)}>编辑</button>
                                                     <button type="button" onClick={() => {
                                                         if (!window.confirm(`删除“${account.nickname}”？历史聊天和记忆将保留。`)) return;
                                                         deleteChatAltAccount(account.id);
@@ -158,7 +157,7 @@ export function ChatScopeSwitcher({ onScopeChange }: { onScopeChange?: (scope: C
                                                 type="button"
                                                 className="menu-item w-full text-left"
                                                 onClick={() => {
-                                                    setAccountDraft({ userIdentityId: identities[0]?.id || "", nickname: "", gender: "", age: "", signature: "", avatarUrl: "" });
+                                                    setAccountDraft({ userIdentityId: identities[0]?.id || "", nickname: "", gender: "", age: "", signature: "", avatarUrl: "", persona: "" });
                                                     setEditingAccountId(null);
                                                     setCreatingAccount(true);
                                                 }}
@@ -170,7 +169,7 @@ export function ChatScopeSwitcher({ onScopeChange }: { onScopeChange?: (scope: C
                                     ) : (
                                         <div className="flex flex-col gap-3 px-2 py-3">
                                             <div className="ts-13 font-medium text-[var(--c-text)]">
-                                                {accountDraft.id ? "编辑独立小号" : "创建独立小号"}
+                                                {editingAccountId ? "编辑独立小号" : "创建独立小号"}
                                             </div>
                                             <label className="flex flex-col gap-1 ts-12 text-[var(--c-text)]">
                                                 <span>收纳到用户身份</span>
@@ -198,21 +197,24 @@ export function ChatScopeSwitcher({ onScopeChange }: { onScopeChange?: (scope: C
                                                 />
                                             </label>
                                             <div className="grid grid-cols-2 gap-2">
-                                                <button type="button" className="ui-btn ui-btn-ghost" onClick={() => setCreatingAccount(false)}>取消</button>
+                                                <button type="button" className="ui-btn ui-btn-ghost" onClick={() => { setCreatingAccount(false); setEditingAccountId(null); }}>取消</button>
                                                 <button
                                                     type="button"
                                                     className="ui-btn ui-btn-primary"
                                                     disabled={!accountDraft.userIdentityId || !accountDraft.nickname.trim()}
                                                     onClick={() => {
-                                                        const account = editingAccountId
-                                                            ? accounts.find(item => item.id === editingAccountId)!
-                                                            : createChatAltAccount(accountDraft);
-                                                        updateChatAltAccount(account.id, accountDraft);
-                                                        update({ chatAccountId: account.id, userIdentityId: account.userIdentityId, worldId: null });
+                                                        if (editingAccountId) {
+                                                            updateChatAltAccount(editingAccountId, accountDraft);
+                                                            update({ chatAccountId: editingAccountId, userIdentityId: accountDraft.userIdentityId, worldId: null });
+                                                        } else {
+                                                            const created = createChatAltAccount(accountDraft);
+                                                            update({ chatAccountId: created.id, userIdentityId: created.userIdentityId, worldId: null });
+                                                        }
                                                         setCreatingAccount(false);
+                                                        setEditingAccountId(null);
                                                         setExpanded(null);
                                                     }}
-                                                >{accountDraft.id ? "保存修改" : "保存并切换"}</button>
+                                                >{editingAccountId ? "保存修改" : "保存并切换"}</button>
                                             </div>
                                         </div>
                                     )}

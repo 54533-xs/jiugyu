@@ -65,7 +65,7 @@ export function saveChatAltAccounts(accounts: ChatAltAccount[]): void {
     window.dispatchEvent(new CustomEvent(CHAT_ALT_ACCOUNTS_UPDATED_EVENT));
 }
 
-export function createChatAltAccount(input: Pick<ChatAltAccount, "userIdentityId" | "nickname" | "gender" | "age" | "signature"> & { persona?: string }): ChatAltAccount {
+export function createChatAltAccount(input: Pick<ChatAltAccount, "userIdentityId" | "nickname" | "gender" | "age" | "signature"> & { persona?: string; avatarUrl?: string }): ChatAltAccount {
     const now = new Date().toISOString();
     const account: ChatAltAccount = {
         id: `chat-alt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -75,6 +75,7 @@ export function createChatAltAccount(input: Pick<ChatAltAccount, "userIdentityId
         age: input.age.trim(),
         signature: input.signature.trim(),
         persona: typeof input.persona === "string" ? input.persona.trim() : "",
+        avatarUrl: typeof input.avatarUrl === "string" && input.avatarUrl.trim() ? input.avatarUrl.trim() : undefined,
         friendCharacterIds: [],
         createdAt: now,
         updatedAt: now,
@@ -83,9 +84,14 @@ export function createChatAltAccount(input: Pick<ChatAltAccount, "userIdentityId
     return account;
 }
 
+export function findChatAltAccount(accountId?: string | null): ChatAltAccount | null {
+    if (!accountId) return null;
+    return loadChatAltAccounts().find(item => item.id === accountId) || null;
+}
+
 export function updateChatAltAccount(
     id: string,
-    patch: Partial<Pick<ChatAltAccount, "userIdentityId" | "nickname" | "gender" | "age" | "signature" | "persona">>
+    patch: Partial<Pick<ChatAltAccount, "userIdentityId" | "nickname" | "gender" | "age" | "signature" | "persona" | "avatarUrl">>
 ): ChatAltAccount | null {
     const accounts = loadChatAltAccounts();
     const index = accounts.findIndex(item => item.id === id);
@@ -99,21 +105,12 @@ export function updateChatAltAccount(
         ...(patch.age !== undefined ? { age: patch.age.trim() } : {}),
         ...(patch.signature !== undefined ? { signature: patch.signature.trim() } : {}),
         ...(patch.persona !== undefined ? { persona: patch.persona.trim() } : {}),
+        ...(patch.avatarUrl !== undefined ? { avatarUrl: patch.avatarUrl.trim() || undefined } : {}),
         updatedAt: new Date().toISOString(),
     };
     accounts[index] = updated;
     saveChatAltAccounts(accounts);
     return updated;
-}
-
-export function findChatAltAccount(accountId?: string | null): ChatAltAccount | null {
-    if (!accountId) return null;
-    return loadChatAltAccounts().find(item => item.id === accountId) || null;
-}
-
-export function updateChatAltAccount(accountId: string, patch: Partial<Pick<ChatAltAccount, "userIdentityId" | "nickname" | "gender" | "age" | "signature" | "avatarUrl">>): void {
-    saveChatAltAccounts(loadChatAltAccounts().map(account => account.id === accountId
-        ? { ...account, ...patch, updatedAt: new Date().toISOString() } : account));
 }
 
 /** 保留身份资料供历史记忆解析，删除后不再显示为可切换账号。 */
