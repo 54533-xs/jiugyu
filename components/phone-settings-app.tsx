@@ -82,11 +82,11 @@ const SETTINGS_MENU = [
     { id: "weixin", icon: MessageSquare, label: "微信接入", desc: "iLink Bot", iconColor: CONTENT_APP_ACCENTS.chat , glass: "weixin" },
     { id: "toolbox", icon: Wrench, label: "聊天工具箱", desc: "外部工具调用", iconColor: BINDING_ACCENTS.voice , glass: "toolbox" },
     { id: "agentComputer", icon: Laptop, label: "角色电脑", desc: "云端小电脑（自部署）", iconColor: BINDING_ACCENTS.memory , glass: "agent-computer" },
-    { id: "perception", icon: Activity, label: "设备感知", desc: "真机电量、网络与步数", iconColor: BINDING_ACCENTS.preset, glass: "presets" },
-    { id: "deviceAction", icon: Zap, label: "操作设备", desc: "手电筒、音量与亮度控制", iconColor: BINDING_ACCENTS.voice, glass: "voice" },
-    { id: "systemCalendar", icon: CalendarDays, label: "系统日历", desc: "双向同步日程与纪念日", iconColor: BINDING_ACCENTS.worldBook, glass: "worldbook" },
-    { id: "widget", icon: LayoutTemplate, label: "桌面小组件", desc: "真机桌面的角色留话", iconColor: BINDING_ACCENTS.api, glass: "data" },
-    { id: "screenshot", icon: Camera, label: "截屏查岗", desc: "悬浮球与角色查岗", iconColor: CONTENT_APP_ACCENTS.moments, glass: "image-generation" },
+    { id: "deviceAction", icon: Zap, label: "操作设备", desc: "硬件动作控制", iconColor: "#f59e0b", glass: "" },
+    { id: "perception", icon: Activity, label: "设备感知", desc: "真机电量与步数", iconColor: "#8b5cf6", glass: "" },
+    { id: "systemCalendar", icon: CalendarDays, label: "系统日历", desc: "真机日程同步", iconColor: CONTENT_APP_ACCENTS.calendar, glass: "" },
+    { id: "widget", icon: LayoutTemplate, label: "桌面小组件", desc: "真机桌面留话", iconColor: "#0ea5e9", glass: "" },
+    { id: "screenshot", icon: Camera, label: "截屏查岗", desc: "悬浮球与查岗", iconColor: CONTENT_APP_ACCENTS.moments, glass: "" },
     { id: "identity", icon: UserCircle, label: "用户身份", desc: "个人信息", iconColor: BINDING_ACCENTS.identity , glass: "identity" },
     { id: "about", icon: Info, label: "关于与声明", desc: "版本与协议", iconColor: BINDING_ACCENTS.memory , glass: "about" },
 ] as const;
@@ -311,6 +311,16 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
         onClick: () => setCurrentPage("binding"),
     };
 
+    const deviceActionItem = SETTINGS_MENU.find(i => i.id === "deviceAction")!;
+    const deviceActionFeaturedItem: FeaturedCardItem = {
+        id: deviceActionItem.id,
+        icon: deviceActionItem.icon,
+        label: deviceActionItem.label,
+        desc: "真机硬件联动控制：手电筒、音量与亮度",
+        iconColor: deviceActionItem.iconColor,
+        onClick: () => setCurrentPage("deviceAction"),
+    };
+
     const renderSubPage = () => {
         switch (currentPage) {
             case "api":
@@ -455,9 +465,10 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                         </div>
                         <div className="settings-hardware-section">
                             <h3 className="settings-menu-section-title">Hardware & Reality</h3>
-                            <div className="mt-[10px]">
+                            <div className="mt-[10px] flex flex-col gap-3">
+                                <FeaturedCard item={deviceActionFeaturedItem} />
                                 <CardGrid
-                                    items={SETTINGS_MENU.filter(item => ["perception", "deviceAction", "systemCalendar", "widget", "screenshot"].includes(item.id)).map(makeCardItem)}
+                                    items={SETTINGS_MENU.filter(item => ["perception", "systemCalendar", "widget", "screenshot"].includes(item.id)).map(makeCardItem)}
                                 />
                             </div>
                         </div>
