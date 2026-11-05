@@ -93,7 +93,8 @@ export default function ListeningLibrary({ sessionId, heroActions, heroSessionId
     const ranking = candidateIds.map(characterId => ({
         characterId,
         milliseconds: libraryData.totals[characterId] || 0,
-    })).sort((a, b) => b.milliseconds - a.milliseconds || a.characterId.localeCompare(b.characterId))
+    })).filter(item => item.milliseconds > 0)
+      .sort((a, b) => b.milliseconds - a.milliseconds || a.characterId.localeCompare(b.characterId))
       .map((item, i, all) => ({
           ...item,
           rank: all.findIndex(x => x.milliseconds === item.milliseconds) + 1,
