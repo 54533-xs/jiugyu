@@ -715,15 +715,15 @@
 }
 
 .music-player-vinyl-groove-1 {
-    inset: 15%;
+    inset: 8%;
 }
 
 .music-player-vinyl-groove-2 {
-    inset: 25%;
+    inset: 14%;
 }
 
 .music-player-vinyl-groove-3 {
-    inset: 35%;
+    inset: 19%;
 }
 
 /* Center label */
@@ -732,15 +732,15 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 90px;
-    height: 90px;
+    width: 140px;
+    height: 140px;
     border-radius: 50%;
     overflow: hidden;
     background: var(--c-music-surface);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: inset 0 0 10px var(--c-music-surface);
+    box-shadow: inset 0 0 10px var(--c-music-surface), 0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 
 .music-player-vinyl-cover {
@@ -5082,7 +5082,7 @@
 .listening-duet-person + .listening-duet-person { margin-left:-9px; }
 .listening-duet-photo { box-sizing:border-box; position:relative; display:grid; place-items:center; width:100%; height:100%; overflow:hidden; border-radius:50%; border:2px solid #ffffffd9; background:var(--c-music-panel,var(--c-page-body-bg,#f8eaf0)); color:var(--c-music-text,var(--c-text,#704354)); font-size:12px; }
 .listening-duet-photo img { width:100%; height:100%; display:block; object-fit:cover; }
-.listening-player-presence .listening-duet { --duet-size:28px; }
+.listening-player-presence .listening-duet { --duet-size:38px; }
 
 .listening-ring { position:absolute;inset:0;width:88px;height:88px;overflow:visible; }
 .listening-ring-base { stroke:rgba(121,126,140,.42);stroke-width:.7; }
@@ -5148,8 +5148,8 @@
 .mp-apple .mp-cover[data-paused] { transform: scale(.94); filter: none; }
 .mp-apple .mp-track-row { position: relative; z-index: 4; display: flex; align-items: center; gap: 16px; margin: 0 28px 6px; flex-shrink: 0; }
 .mp-apple .mp-titles { padding: 0; }
-.mp-apple .mp-song { font-size: calc(22px * var(--app-text-scale,1)); line-height: 1.3; font-weight: 650; letter-spacing: -.5px; }
-.mp-apple .mp-artist { font-size: calc(18px * var(--app-text-scale,1)); min-height: 32px; margin: 0; color: var(--c-music-accent); letter-spacing: -.3px; }
+.mp-apple .mp-song { font-size: calc(16.5px * var(--app-text-scale,1)); line-height: 1.35; font-weight: 600; letter-spacing: -.3px; }
+.mp-apple .mp-artist { font-size: calc(13px * var(--app-text-scale,1)); min-height: 24px; margin: 2px 0 0; color: var(--c-music-accent); letter-spacing: -.2px; }
 .mp-apple .mp-artist svg { display: none; }
 .mp-apple .mp-more { position: relative; flex-shrink: 0; }
 .mp-apple .mp-more summary { list-style: none; width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer; border-radius: 50%; background: var(--mp-slider-track); }
@@ -5217,7 +5217,7 @@
 .mp-apple .mp-icon-button:active { transform: scale(.95); opacity: .72; }
 .mp-apple .mp-comments-button { position: absolute; right: 22px; top: -4px; color: var(--c-music-accent); }
 .mp-apple .mp-track-row { gap: 10px; }
-.mp-apple .mp-song { font-size: calc(21px * var(--app-text-scale,1)); }
+.mp-apple .mp-song { font-size: calc(16.5px * var(--app-text-scale,1)); }
 .mp-apple .mp-footer { margin: 4px 28px 14px; padding: 5px 18px; border-radius: 24px; background: var(--mp-frost); border: 1px solid var(--mp-frost-border); backdrop-filter: blur(28px) saturate(135%); -webkit-backdrop-filter: blur(28px) saturate(135%); box-shadow: inset 0 1px 0 #ffffff30, 0 6px 20px #00000005; }
 .mp-apple .mp-footer .mp-share-button { color: var(--c-music-primary); }
 .mp-apple .mp-lyric-seek[aria-pressed="true"] { text-decoration: none; }
