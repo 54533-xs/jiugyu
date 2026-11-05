@@ -772,7 +772,7 @@ export function VoiceCallScreen({ session, character, onEnd, onConnect, initiato
                         <button
                             type="button"
                             onClick={handleRegenerate}
-                            className="call-regenerate-btn"
+                            className="call-regenerate-btn shrink-0"
                             disabled={callState !== "IDLE"}
                             aria-label="让对方重新回复"
                             title="让对方重新回复"
@@ -783,17 +783,17 @@ export function VoiceCallScreen({ session, character, onEnd, onConnect, initiato
                                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
                             </svg>
                         </button>
-                        <div className="call-text-input-shell">
+                        <div className="call-text-input-shell flex-1 min-w-0">
                             <input
                                 value={typedText}
                                 onChange={e => setTypedText(e.target.value)}
-                                className="call-text-input"
+                                className="call-text-input flex-1 min-w-0"
                                 placeholder={callState === "IDLE" ? "输入你想说的话..." : "稍等对方说完..."}
                                 disabled={callState !== "IDLE"}
                             />
                             <button
                                 type="submit"
-                                className="call-text-send-btn"
+                                className="call-text-send-btn shrink-0"
                                 disabled={!typedText.trim() || callState !== "IDLE"}
                                 aria-label="发送"
                             >

@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, Fragment, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, Fragment, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChatSession, ChatMessage, CHAT_APP_SETTINGS_UPDATED_EVENT, CHAT_INITIAL_VISIBLE_MESSAGE_COUNT, CHAT_LOAD_MORE_MESSAGE_COUNT, CHAT_REQUEST_REPLY_EVENT, loadChatAppSettings, loadChatMessages, loadChatContacts, loadChatSessions, saveChatSessions, pushChatMessage, updateChatMessage, deleteChatMessage, deleteChatMessagesFrom, deleteChatMessagesByIds, retractChatMessage, editChatMessage, updateMessageMediaData, replaceResponseBatchWithParts, replaceGroupResponseRound, isReadingDiscussMessage, isSystemInstructionMessage, getSystemInstructionDisplayContent, createResponseBatchId, createResponseRoundId, getLatestStateValues, getLatestCharacterStateValues, compareChatMessages, isSessionStreamingEnabled, resolveChatBackgroundImage, resolveChatCharacterAvatar, resolveChatUserAvatar } from "@/lib/chat-storage";
 import { cleanStreamText, splitStreamPreviewSegments, stripLiteralTexts, stripXmlTagBlocks } from "@/lib/stream-preview";
 import type { StateValue } from "@/lib/chat-storage";
@@ -12,6 +12,8 @@ import { withChineseThinkingPrompt } from "@/lib/chinese-thinking-prompt";
 import { MessageBubble, MediaDetailModal, prewarmStickerCache, BilingualTextBlock, isStandaloneHtmlPreviewContent, normalizeTextBubbleContent } from "./message-bubble";
 import { GeneratedImageErrorDialog } from "./generated-image-error-dialog";
 import { PhotoInputModal, TextPhotoModal, VoiceRecordModal, RedPacketModal, LocationInputModal, SystemInstructionModal } from "./rich-input-modals";
+import ChatMusicPanel from "@/components/music/chat-music-panel";
+import { getListeningRoom, inviteListeningRoom, startDirectListeningRoom, inviteGroupListeningRoom, leaveListeningRoom, applyListeningRoomReply } from "@/lib/listen-together";
 import { EmojiPanel, StickerPanel } from "./emoji-panel";
 import { StickerSearchSuggest } from "./sticker-search-suggest";
 import { StateValuesPanel } from "./state-values-panel";
@@ -212,6 +214,7 @@ const CHAT_VISUAL_MEDIA_TYPES = new Set([
     "image",
     "location",
     "music_share",
+    "listening_invite",
     "xiaohongshu_note_share",
     "app_card",
     "audio",
@@ -260,6 +263,7 @@ const CHAT_MEDIA_BUBBLE_TYPES = new Set([
     "image",
     "location",
     "music_share",
+    "listening_invite",
     "xiaohongshu_note_share",
     "app_card",
     "media_file",
@@ -765,6 +769,7 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>, label: "红包", onClick: () => onOpenRichModal("red_packet") },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><text x="12" y="16" textAnchor="middle" fontSize="12" fill="var(--c-text)" stroke="none">¥</text></svg>, label: "转账", onClick: () => onOpenRichModal(isGroup ? "transfer_target" : "transfer") },
         { icon: <Gift size={22} strokeWidth={1.5} color="var(--c-text)" />, label: "礼物", onClick: () => onOpenRichModal("gift") },
+        { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6" /><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" /></svg>, label: "一起听", onClick: () => onOpenRichModal("listening" as any) },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>, label: "位置", onClick: () => onOpenRichModal("location") },
         { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" /><line x1="8" y1="22" x2="16" y2="22" /></svg>, label: "语音条", onClick: () => onOpenRichModal("voice_msg") },
         ...customPlusActions.map(action => ({
@@ -1124,6 +1129,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contac
         const chars = loadCharacters();
         return chars.find(c => c.id === session.contactId) || null;
     });
+    const [showMusicPanel, setShowMusicPanel] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
     const [theaterMode, setTheaterMode] = useState(() => kvGet(CHAT_THEATER_MODE_PREFIX + session.id) === "1");
@@ -1626,6 +1632,17 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contac
         window.addEventListener("chat-messages-updated", onExternalMessageUpdate);
         return () => window.removeEventListener("chat-messages-updated", onExternalMessageUpdate);
     }, [session.id, syncMessagesFromStorage]);
+
+    useEffect(() => {
+        const onTriggerReply = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail?.sessionId === session.id && !isGeneratingRef.current) {
+                void triggerAIResponse();
+            }
+        };
+        window.addEventListener("chat-room-trigger-reply", onTriggerReply);
+        return () => window.removeEventListener("chat-room-trigger-reply", onTriggerReply);
+    }, [session.id]);
 
     // --- Background generation: reload messages when a bg API call completes ---
     useEffect(() => {
@@ -2516,7 +2533,8 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contac
             if (!(session.participantIds || []).includes(r.characterId)) continue;
             if (isGroupMuted(session, r.characterId)) continue;
             const responseBatchId = createResponseBatchId();
-            const { parts: rawParts, stateValues, freshStateValues, statusPanel, innerMonologue } = parseAIResponse(r.responseText, getCurrentStateForCharacter(r.characterId));
+            const groupResponseText = applyListeningRoomReply(r.responseText, session.id, r.characterId, responseBatchId);
+            const { parts: rawParts, stateValues, freshStateValues, statusPanel, innerMonologue } = parseAIResponse(groupResponseText, getCurrentStateForCharacter(r.characterId));
             const parts = stripInvalidStickerParts(rawParts, r.characterId);
             let attachedState = false;
             let savedAnyPart = false;
@@ -2953,7 +2971,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contac
         const forcedStory = forcedStoryEnabled
             ? extractForcedStoryTrigger(aiResponseText)
             : { text: aiResponseText, description: undefined };
-        aiResponseText = forcedStory.text;
+        aiResponseText = applyListeningRoomReply(forcedStory.text, session.id, session.contactId, responseBatchId);
         const rawResponseText = options?.rawResponseText
             ? extractForcedStoryTrigger(options.rawResponseText).text
             : aiResponseText;
@@ -4110,7 +4128,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contac
                 clearGenerationLock(session.id);
             }
         }
-        if (shouldRunDeclineReply) await triggerReply();
+        if (shouldRunDeclineReply) await triggerAIResponse();
     };
 
     // 收起键盘（或关掉表情/加号面板）并安静 N 秒后自动触发回复，
@@ -5840,7 +5858,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contac
                             </span>
                         )}
                     </span>
-                    <span className="page-header-right">
+                    <span className="page-header-right" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                         <button className="page-back-btn" type="button" onClick={() => setShowSettings(true)} aria-label="更多">
                             <MoreHorizontal size={22} strokeWidth={1.5} />
                         </button>
@@ -6721,7 +6739,14 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contac
 	                onTogglePlusMenu={() => { setShowPlusMenu(!showPlusMenu); setShowEmojiPanel(false); setShowStickerPanel(false); }}
 	                onToggleTheaterMode={toggleTheaterMode}
 	                onCloseTheaterMode={closeTheaterMode}
-	                onOpenRichModal={(modal) => { setShowPlusMenu(false); setRichModal(modal); }}
+	                onOpenRichModal={(modal) => {
+                            setShowPlusMenu(false);
+                            if ((modal as string) === "listening") {
+                                setShowMusicPanel(true);
+                                return;
+                            }
+                            setRichModal(modal);
+                        }}
                 onOpenCustomPlusAction={handleOpenCustomPlusAction}
                 onStartVideoCall={() => { cancelFollowUp(session.id); setShowPlusMenu(false); setCallInitiator("user"); setShowVideoCall(true); }}
                 onStartVoiceCall={() => { cancelFollowUp(session.id); setShowPlusMenu(false); setCallInitiator("user"); setShowVoiceCall(true); }}
@@ -7286,6 +7311,67 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contac
                     onEnd={() => returnFromCall(() => setShowVideoCall(false))}
                 />,
                 wrapperRef.current.parentElement,
+            )}
+
+            {showMusicPanel && (
+                <ChatMusicPanel
+                    sessionId={session.id}
+                    characterId={session.contactId}
+                    name={session.isGroup ? (session as any).groupName || "群聊" : character?.name || "对方"}
+                    avatar={session.isGroup ? (session as any).groupAvatar : (resolveChatCharacterAvatar(character) || character?.avatar || undefined)}
+                    busy={isGenerating}
+                    onClose={() => setShowMusicPanel(false)}
+                    onInvite={(customTrack) => {
+                        const snapshot = getMusicControlBridge()?.getState();
+                        const track = customTrack || snapshot?.currentTrack;
+                        if (!track?.title) {
+                            showChatToast("请先选择一首歌播放，再发起一起听");
+                            return;
+                        }
+                        try {
+                            const invitation = session.isGroup
+                                ? inviteGroupListeningRoom(session.id)
+                                : startDirectListeningRoom(session.id, session.contactId, {
+                                    title: track.title,
+                                    artist: track.artist,
+                                    coverUrl: track.coverUrl,
+                                });
+                            pushChatMessage({
+                                sessionId: session.id,
+                                role: "user",
+                                content: `邀请你一起听《${track.title}》。`,
+                                mediaType: "listening_invite",
+                                mediaData: {
+                                    listeningInvite: {
+                                        roomId: invitation.id,
+                                        initiator: "user",
+                                        response: "accepted",
+                                        title: track.title,
+                                        artist: track.artist,
+                                        coverUrl: track.coverUrl,
+                                    }
+                                }
+                            });
+                            pushChatMessage({
+                                sessionId: session.id,
+                                role: "system",
+                                content: `你和${session.isGroup ? (session as any).groupName || "大家" : character?.name || "对方"}开始了一起听。`
+                            });
+                            setMessages(loadChatMessages(session.id));
+                            setShowMusicPanel(false);
+                            showChatToast("已开启一起听，播放中");
+                        } catch (error) {
+                            leaveListeningRoom(session.id);
+                            throw error;
+                        }
+                    }}
+                    onLeave={() => {
+                        leaveListeningRoom(session.id);
+                        pushChatMessage({ sessionId: session.id, role: "system", content: session.isGroup ? "用户退出了一起听或取消了邀请。" : "用户结束了一起听或取消了邀请。" });
+                        setMessages(loadChatMessages(session.id));
+                    }}
+                    onRetry={() => { if (!isGeneratingRef.current) void triggerAIResponse(); }}
+                />
             )}
 
         </div >
