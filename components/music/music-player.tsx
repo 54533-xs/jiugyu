@@ -718,14 +718,7 @@ export default function MusicPlayer() {
 
             </div>
 
-            <div className="mp-volume">
-                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9h4l5-4v14l-5-4H3z" /></svg>
-                <input className="mp-range" type="range" min="0" max="1" step="0.01" value={player.volume}
-                    aria-label="音量" aria-valuetext={Math.round(player.volume * 100) + "%"}
-                    style={{ "--mp-fill": player.volume * 100 + "%" } as React.CSSProperties}
-                    onChange={e => player.setVolume(Number(e.target.value))} />
-                <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path fill="currentColor" stroke="none" d="M2 9h4l5-4v14l-5-4H2z" /><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" /></svg>
-            </div>
+
             <div className="mp-footer">
                 <button className="music-player-ctrl-btn mp-ctrl-side" aria-label="返回音乐首页" title="返回音乐首页" onClick={() => { player.closeFullPlayer(); requestMusicHome(); }}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
