@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, createContext, type CSSProperties, type ReactNode } from "react";
-import { Activity, Check, ChevronRight, Clock, Database, FileText, Fingerprint, Globe, HardDrive, Image, Info, KeyRound, Laptop, Layers, Link2, Loader2, LogOut, MessageSquare, Mic, SlidersHorizontal, UserCircle, Wrench, X, CloudUpload } from "lucide-react";
+import { Activity, CalendarDays, Camera, Check, ChevronRight, Clock, Database, FileText, Fingerprint, Globe, HardDrive, Image, Info, KeyRound, Laptop, Layers, LayoutTemplate, Link2, Loader2, LogOut, MessageSquare, Mic, SlidersHorizontal, UserCircle, Wrench, X, CloudUpload, Zap } from "lucide-react";
 import { ConfirmDialog } from "./ui/modal";
 import { useAccount } from "@/lib/account-context";
 import { isSelfHostedModeEnabled } from "@/lib/self-hosting";
@@ -21,6 +21,11 @@ import { CloudServicesPage } from "./settings/cloud-services-setup";
 import { ToolboxSettings } from "./settings/toolbox-settings";
 import { ModerationCenter } from "./settings/moderation-center";
 import { AgentComputerSettings } from "./settings/agent-computer-settings";
+import { PerceptionSettings } from "./perception/perception-settings";
+import { DeviceActionSettings } from "./device-action/device-action-settings";
+import { SystemCalendarSettings } from "./system-calendar/system-calendar-settings";
+import { ScreenshotSettings } from "./screenshot/screenshot-settings";
+import { WidgetSettings } from "./widget/widget-settings";
 import { fetchIsAdmin } from "@/lib/moderation-client";
 import { PageShell } from "./ui/page-shell";
 import { CardGrid, FeaturedCard, type CardItem, type FeaturedCardItem } from "./ui/card-grid";
@@ -57,6 +62,11 @@ type SubPage =
     | "toolbox"
     | "agentComputer"
     | "moderation"
+    | "perception"
+    | "deviceAction"
+    | "systemCalendar"
+    | "widget"
+    | "screenshot"
     | "about";
 
 const SETTINGS_MENU = [
@@ -72,6 +82,11 @@ const SETTINGS_MENU = [
     { id: "weixin", icon: MessageSquare, label: "微信接入", desc: "iLink Bot", iconColor: CONTENT_APP_ACCENTS.chat , glass: "weixin" },
     { id: "toolbox", icon: Wrench, label: "聊天工具箱", desc: "外部工具调用", iconColor: BINDING_ACCENTS.voice , glass: "toolbox" },
     { id: "agentComputer", icon: Laptop, label: "角色电脑", desc: "云端小电脑（自部署）", iconColor: BINDING_ACCENTS.memory , glass: "agent-computer" },
+    { id: "perception", icon: Activity, label: "设备感知", desc: "真机电量、网络与步数", iconColor: BINDING_ACCENTS.preset, glass: "presets" },
+    { id: "deviceAction", icon: Zap, label: "操作设备", desc: "手电筒、音量与亮度控制", iconColor: BINDING_ACCENTS.voice, glass: "voice" },
+    { id: "systemCalendar", icon: CalendarDays, label: "系统日历", desc: "双向同步日程与纪念日", iconColor: BINDING_ACCENTS.worldBook, glass: "worldbook" },
+    { id: "widget", icon: LayoutTemplate, label: "桌面小组件", desc: "真机桌面的角色留话", iconColor: BINDING_ACCENTS.api, glass: "data" },
+    { id: "screenshot", icon: Camera, label: "截屏查岗", desc: "悬浮球与角色查岗", iconColor: CONTENT_APP_ACCENTS.moments, glass: "image-generation" },
     { id: "identity", icon: UserCircle, label: "用户身份", desc: "个人信息", iconColor: BINDING_ACCENTS.identity , glass: "identity" },
     { id: "about", icon: Info, label: "关于与声明", desc: "版本与协议", iconColor: BINDING_ACCENTS.memory , glass: "about" },
 ] as const;
@@ -324,6 +339,16 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                 return <AgentComputerSettings onNotice={onNotice} />;
             case "moderation":
                 return <ModerationCenter onNotice={onNotice} />;
+            case "perception":
+                return <PerceptionSettings />;
+            case "deviceAction":
+                return <DeviceActionSettings />;
+            case "systemCalendar":
+                return <SystemCalendarSettings />;
+            case "widget":
+                return <WidgetSettings />;
+            case "screenshot":
+                return <ScreenshotSettings />;
             case "identity":
                 return <UserIdentitySettings />;
             case "about":
