@@ -5443,3 +5443,37 @@
   background-color: var(--c-music-bg);
 }
 
+/* 听歌周报卡片日间模式浅色渲染 */
+.music-app[data-theme="light"] .music-week-card {
+  background:
+    radial-gradient(220px 130px at 85% 0%, rgba(92, 124, 250, 0.12), transparent 70%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(243, 245, 250, 0.88));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.music-app[data-theme="light"] .music-week-eyebrow {
+  color: #7b889b;
+}
+.music-app[data-theme="light"] .music-week-big {
+  color: #1a1e28;
+}
+.music-app[data-theme="light"] .music-week-big em {
+  color: #3b5bdb;
+}
+.music-app[data-theme="light"] .music-week-sub {
+  color: #556274;
+}
+.music-app[data-theme="light"] .music-week-bar i {
+  background: linear-gradient(180deg, rgba(92, 124, 250, 0.88), rgba(140, 165, 255, 0.45));
+}
+.music-app[data-theme="light"] .music-week-bar:first-child i {
+  box-shadow: 0 0 12px rgba(92, 124, 250, 0.35);
+}
+.music-app[data-theme="light"] .music-week-bar span {
+  color: #6c788a;
+}
+.music-app[data-theme="light"] .music-week-note {
+  color: #8c98aa;
+  opacity: 0.85;
+}
+
