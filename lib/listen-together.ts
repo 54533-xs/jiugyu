@@ -289,8 +289,10 @@ export function applyListeningRoomReply(text: string, sessionId: string, actorId
         window.dispatchEvent(new CustomEvent("chat-messages-updated", { detail: { sessionId } }));
         return "";
     });
-    return cleaned.replace(/\[一起听:(?:([\w-]+):)?(接受|拒绝|退出)\]/g, (marker, id: string | undefined, action: string, offset: number) => {
+    let didAcceptMarker = false;
+    const stripped = cleaned.replace(/\[一起听:(?:([\w-]+):)?(接受|拒绝|退出)\]/g, (marker, id: string | undefined, action: string, offset: number) => {
         const current = getListeningRoom();
+        if (action === "接受") didAcceptMarker = true;
         if (!current || current.sessionId !== sessionId || (id && current.id !== id)) return "";
         if (!id) {
             if (action === "退出" || current.initiator === "character" || current.userJoined === false
@@ -345,6 +347,11 @@ export function applyListeningRoomReply(text: string, sessionId: string, actorId
         }
         emit(); return "";
     }).trim();
+
+    if (!stripped && didAcceptMarker) {
+        return "好啊，我们一起听这首歌。";
+    }
+    return stripped;
 }
 
 const resolving = new Set<string>();

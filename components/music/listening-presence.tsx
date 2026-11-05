@@ -38,7 +38,10 @@ export function ListeningDuration({ startedAt }: { startedAt: number }) {
         return () => window.clearInterval(timer);
     }, [startedAt]);
     const minutes = Math.max(0, Math.floor((now - startedAt) / 60000));
-    return <span>{minutes < 1 ? "一起听 · 此刻开始" : `一起听了 ${minutes >= 60 ? `${Math.floor(minutes / 60)} 小时 ` : ""}${minutes % 60} 分钟`}</span>;
+    const text = minutes >= 60
+        ? `一起听了${Math.floor(minutes / 60)}小时${minutes % 60}分钟`
+        : `一起听了${minutes}分钟`;
+    return <span>{text}</span>;
 }
 
 export function ListeningDuet({ userAvatar, userName, avatar, name, joined, playing }: {
