@@ -13,7 +13,7 @@ import { MessageBubble, MediaDetailModal, prewarmStickerCache, BilingualTextBloc
 import { GeneratedImageErrorDialog } from "./generated-image-error-dialog";
 import { PhotoInputModal, TextPhotoModal, VoiceRecordModal, RedPacketModal, LocationInputModal, SystemInstructionModal } from "./rich-input-modals";
 import ChatMusicPanel from "@/components/music/chat-music-panel";
-import { getListeningRoom, subscribeListeningRoom, inviteListeningRoom, startDirectListeningRoom, inviteGroupListeningRoom, leaveListeningRoom, applyListeningRoomReply } from "@/lib/listen-together";
+import { getListeningRoom, inviteListeningRoom, startDirectListeningRoom, inviteGroupListeningRoom, leaveListeningRoom, applyListeningRoomReply } from "@/lib/listen-together";
 import { EmojiPanel, StickerPanel } from "./emoji-panel";
 import { StickerSearchSuggest } from "./sticker-search-suggest";
 import { StateValuesPanel } from "./state-values-panel";
@@ -1129,8 +1129,6 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contac
         const chars = loadCharacters();
         return chars.find(c => c.id === session.contactId) || null;
     });
-    const activeListeningRoom = useSyncExternalStore(subscribeListeningRoom, getListeningRoom, () => null);
-    const isListeningActiveHere = activeListeningRoom?.sessionId === session.id && activeListeningRoom.status !== "declined";
     const [showMusicPanel, setShowMusicPanel] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
@@ -5861,40 +5859,6 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent, contac
                         )}
                     </span>
                     <span className="page-header-right" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        {isListeningActiveHere && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    leaveListeningRoom(session.id);
-                                    pushChatMessage({
-                                        sessionId: session.id,
-                                        role: "system",
-                                        content: session.isGroup ? "用户退出了一起听或取消了邀请。" : "用户结束了一起听或取消了邀请。"
-                                    });
-                                    setMessages(loadChatMessages(session.id));
-                                    showChatToast("已退出一起听");
-                                }}
-                                style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "5px",
-                                    padding: "3px 9px",
-                                    borderRadius: "14px",
-                                    fontSize: "11px",
-                                    fontWeight: 500,
-                                    color: "#ff4d88",
-                                    backgroundColor: "rgba(255, 77, 136, 0.12)",
-                                    border: "1px solid rgba(255, 77, 136, 0.28)",
-                                    cursor: "pointer",
-                                    lineHeight: "1.2",
-                                }}
-                                title="点击退出当前一起听"
-                                aria-label="退出一起听"
-                            >
-                                <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#ff4d88" }} />
-                                <span>退出一起听</span>
-                            </button>
-                        )}
                         <button className="page-back-btn" type="button" onClick={() => setShowSettings(true)} aria-label="更多">
                             <MoreHorizontal size={22} strokeWidth={1.5} />
                         </button>
