@@ -4,6 +4,7 @@ import { getListeningRoom, subscribeListeningRoom, leaveListeningRoom, joinGroup
 import { loadCharacters } from "@/lib/character-storage";
 import { loadChatSessions, pushChatMessage, resolveChatUserAvatar } from "@/lib/chat-storage";
 import { resolveUserIdentity } from "@/lib/settings-storage";
+import { resolveChatAccountUserIdentity } from "@/lib/chat-scope-storage";
 import { useMusicControlsOptional } from "@/lib/music-context";
 import { extractListeningColor, LISTENING_COLOR_FALLBACK } from "@/lib/listening-cover-color";
 import { X } from "lucide-react";
@@ -14,8 +15,10 @@ export function useListeningPresence() {
     const characters = loadCharacters();
     const character = room ? characters.find(c => c.id === room.characterId) : null;
     const session = room ? loadChatSessions().find(s => s.id === room.sessionId) : null;
-    const user = resolveUserIdentity(character?.id);
-    const userAvatarUrl = resolveChatUserAvatar(session, (user as any)?.avatarUrl || (user as any)?.avatar);
+    const user = session
+        ? resolveChatAccountUserIdentity(session.chatAccountId, session.contactId, "chat")
+        : resolveUserIdentity(character?.id);
+    const userAvatarUrl = resolveChatUserAvatar(session, user?.avatarUrl);
     const members = room?.isGroup ? (room.members || []).map(m => { const c = characters.find(c => c.id === m.characterId); return { ...m, name: c?.name || "群成员", avatar: c?.chatAvatar || c?.avatar }; }) : [];
     return {
         members,

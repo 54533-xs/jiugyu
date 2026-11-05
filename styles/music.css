@@ -1163,23 +1163,23 @@
 }
 
 .music-float-vinyl-groove-1 {
-    inset: 9%;
+    inset: 6%;
 }
 
 .music-float-vinyl-groove-2 {
-    inset: 16%;
+    inset: 11%;
 }
 
 .music-float-vinyl-center {
-    width: 34px;
-    height: 34px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     overflow: hidden;
     background: var(--c-music-surface);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: inset 0 0 4px var(--c-music-surface), 0 0 0 1px rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 0 4px var(--c-music-surface), 0 0 0 1px rgba(255, 255, 255, 0.25);
     z-index: 2;
 }
 
@@ -5093,7 +5093,7 @@
 .listening-planets { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); width:88px; height:88px; pointer-events:none; z-index:3; }
 .listening-orbit { position:absolute; inset:0; animation:listening-orbit-one 24s linear infinite; }
 .listening-orbit-char { animation-name:listening-orbit-two; }
-.listening-planet { position:absolute; right:0; top:34px; width:20px; height:20px; border-radius:50%; background:#f8d7e5; border:1px solid #fff; overflow:hidden; box-shadow:0 1px 3px #0002; display:grid; place-items:center; font-size:10px; color:#833d58; animation:listening-upright-one 24s linear infinite; }
+.listening-planet { position:absolute; right:0; top:32px; width:24px; height:24px; border-radius:50%; background:#f8d7e5; border:1.5px solid #fff; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.22); display:grid; place-items:center; font-size:11px; color:#833d58; animation:listening-upright-one 24s linear infinite; }
 .listening-orbit-char .listening-planet { animation-name:listening-upright-two; }
 .listening-planet img { width:100%; height:100%; object-fit:cover; display:block; }
 
