@@ -453,6 +453,14 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                                 <FeaturedCard item={agentComputerFeaturedItem} />
                             </div>
                         </div>
+                        <div className="settings-hardware-section">
+                            <h3 className="settings-menu-section-title">Hardware & Reality</h3>
+                            <div className="mt-[10px]">
+                                <CardGrid
+                                    items={SETTINGS_MENU.filter(item => ["perception", "deviceAction", "systemCalendar", "widget", "screenshot"].includes(item.id)).map(makeCardItem)}
+                                />
+                            </div>
+                        </div>
                         <div className="settings-realtime-section">
                             <h3 className="settings-menu-section-title">Runtime</h3>
                             <div className="app-card card-featured settings-toggle-card">
