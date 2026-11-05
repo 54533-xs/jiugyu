@@ -20,7 +20,18 @@ export type ListeningRoom = {
 
 let room: ListeningRoom | null = null;
 const listeners = new Set<() => void>();
-function emit() { listeners.forEach(listener => listener()); }
+function emit() {
+    if (typeof window !== "undefined") {
+        try {
+            if (room && room.status !== "declined") {
+                localStorage.setItem("active_listening_room", JSON.stringify(room));
+            } else {
+                localStorage.removeItem("active_listening_room");
+            }
+        } catch { /* ignore */ }
+    }
+    listeners.forEach(listener => listener());
+}
 let accountingTimer: ReturnType<typeof setInterval> | undefined;
 let previousSample: { roomId: string; at: number; time: number; trackId: string; playing: boolean } | null = null;
 
@@ -126,7 +137,17 @@ export function subscribeListeningRoom(listener: () => void) {
 }
 
 export function getListeningRoom(): ListeningRoom | null {
-    if (!room) return null;
+    if (!room && typeof window !== "undefined") {
+        try {
+            const raw = localStorage.getItem("active_listening_room");
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === "object" && parsed.id && parsed.status !== "declined") {
+                    room = parsed;
+                }
+            }
+        } catch { /* ignore */ }
+    }
     return room;
 }
 
@@ -356,19 +377,45 @@ export function applyListeningRoomReply(text: string, sessionId: string, actorId
 
 const resolving = new Set<string>();
 export async function respondToListeningInvitation(id: string, sessionId: string, accept: boolean): Promise<void> {
-    const current = getListeningRoom();
-    if (!current || current.id !== id || current.sessionId !== sessionId || current.status !== "invited" || current.initiator !== "character") throw new Error("这份邀请已不在等待回应");
+    let current = getListeningRoom();
+    if (!current || current.id !== id || current.sessionId !== sessionId || current.status !== "invited" || current.initiator !== "character") {
+        const messages = loadChatMessages(sessionId);
+        const inviteMsg = messages.find(m => m.mediaData?.listeningInvite?.roomId === id && m.mediaData?.listeningInvite?.initiator === "character" && !m.mediaData?.listeningInvite?.response);
+        if (inviteMsg && (!current || current.status === "declined" || current.sessionId === sessionId)) {
+            const data = inviteMsg.mediaData?.listeningInvite;
+            current = {
+                id,
+                identityId: null,
+                sessionId,
+                characterId: inviteMsg.senderCharacterId || "",
+                status: "invited",
+                initiator: "character",
+                startedAt: inviteMsg.createdAt || Date.now(),
+                invitationMessageId: inviteMsg.id,
+                song: { title: data?.title, artist: data?.artist, coverUrl: data?.coverUrl },
+            };
+            room = current;
+            emit();
+        } else {
+            throw new Error("这份邀请已不在等待回应");
+        }
+    }
     if (resolving.has(id)) return;
     resolving.add(id);
     try {
         if (accept && current.song?.title) {
             const bridge = getMusicControlBridge();
-            if (!bridge) throw new Error("音乐播放器尚未准备好，请重试");
-            const state = bridge.getState();
-            if (state.currentTrack?.title === current.song.title && (!current.song.artist || state.currentTrack.artist === current.song.artist)) bridge.resume();
-            else {
-                const result = await bridge.playByQuery(current.song.title, current.song.artist);
-                if (!result.ok) throw new Error(result.message || "歌曲暂时无法播放，请重试");
+            if (bridge) {
+                try {
+                    const state = bridge.getState();
+                    if (state.currentTrack?.title === current.song.title && (!current.song.artist || state.currentTrack.artist === current.song.artist)) {
+                        bridge.resume();
+                    } else {
+                        await bridge.playByQuery(current.song.title, current.song.artist);
+                    }
+                } catch (playErr) {
+                    console.warn("[ListenTogether] 歌曲自动播放受阻，降级保持一起听状态:", playErr);
+                }
             }
         }
         if (getListeningRoom()?.id !== id) return;

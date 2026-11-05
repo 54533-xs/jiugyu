@@ -30,7 +30,12 @@ export function ListeningInviteCard({ msg, readOnly = false }: { msg: ChatMessag
             aria-label={actionable ? "一起听邀请，向右滑动或右箭头接受，向左滑动或左箭头拒绝" : label}
             aria-disabled={busy || undefined} style={actionable ? { touchAction: "pan-y", cursor: "grab" } : undefined}
             onContextMenu={e => { if (actionable) { e.preventDefault(); e.stopPropagation(); } }}
-            onClick={e => { if (actionable) e.stopPropagation(); }}
+            onClick={e => {
+                if (actionable && !busy) {
+                    e.stopPropagation();
+                    void respond(true);
+                }
+            }}
             onPointerDown={e => {
                 if (!actionable || busy || e.button !== 0) return;
                 e.stopPropagation();
@@ -69,6 +74,30 @@ export function ListeningInviteCard({ msg, readOnly = false }: { msg: ChatMessag
         </div>
         {actionable && busy && <div className="listening-invite-gesture-hint" role="status">正在连接…</div>}
         {error && <div className="listening-invite-gesture-hint" role="status">{error}</div>}
+        {actionable && !busy && (
+            <div className="listening-invite-actions-wrap">
+                <button
+                    type="button"
+                    className="listening-invite-btn listening-invite-btn-decline"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        void respond(false);
+                    }}
+                >
+                    婉拒
+                </button>
+                <button
+                    type="button"
+                    className="listening-invite-btn listening-invite-btn-accept"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        void respond(true);
+                    }}
+                >
+                    接受一起听
+                </button>
+            </div>
+        )}
         {invite?.initiator === "user" && status === "invited" && (
             <div className="listening-invite-trigger-reply-wrap">
                 <button
@@ -79,7 +108,7 @@ export function ListeningInviteCard({ msg, readOnly = false }: { msg: ChatMessag
                         window.dispatchEvent(new CustomEvent("chat-room-trigger-reply", { detail: { sessionId: msg.sessionId } }));
                     }}
                 >
-                    ✨ 提醒TA听
+                    提醒TA听
                 </button>
             </div>
         )}
